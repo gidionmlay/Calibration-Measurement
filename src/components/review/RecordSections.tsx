@@ -78,7 +78,7 @@ export function RecordSections() {
           { label: 'Finish reading', value: active.distFinish || '—' },
           { label: 'Rollover adjustment', value: dc ? dc.adjustment ? `+${dc.adjustment}` : 'None' : '—' },
           { label: 'Total count (T)', value: dc ? String(dc.count) : '—' },
-          { label: 'WC used', value: fmt(distance.wc) },
+          { label: 'WC used', value: `${fmt(distance.wc)} (${distance.basis.source === 'final' ? 'final constant' : 'pre-cal WC'}${distance.basis.provisional ? ' · provisional' : ''})` },
           { label: 'Distance (full precision)', value: distance.km !== null ? `${fmt(distance.km)} km` : '—' }]
           } />
         

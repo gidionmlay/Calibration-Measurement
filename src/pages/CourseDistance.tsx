@@ -20,7 +20,7 @@ export function CourseDistance() {
   if (!active || !derived) return null;
 
   const d = derived.distance;
-  const wc = derived.pre.wc;
+  const wc = d.basis.wc;
   const startErr = readingError(d.start, showErrors, 'Enter the start counter reading.');
   const finishErr = readingError(d.finish, showErrors, 'Enter the finish counter reading.') ?? (d.count && !d.count.ok ? d.count.message : null);
   const count = d.count && d.count.ok ? d.count : null;
@@ -58,12 +58,16 @@ export function CourseDistance() {
     goTo('post');
   };
 
+  const wcLabel = d.basis.source === 'final'
+    ? `Working constant used (Final WC · ${d.basis.provisional ? 'provisional' : 'approved'})`
+    : 'Working constant used (Pre-calibration WC · provisional)';
+
   const details = [
   { label: 'Start reading', value: d.start.ok ? String(d.start.value) : '—' },
   { label: 'Finish reading', value: d.finish.ok ? String(d.finish.value) : '—' },
   { label: 'Rollover adjustment', value: count ? count.adjustment ? `+${count.adjustment}` : 'None (finish ≥ start)' : '—' },
   { label: 'Total count  T = Finish − Start' + (count?.adjustment ? ' + adjustment' : ''), value: count ? String(count.count) : '—' },
-  { label: 'Working constant used (WC)', value: fmt(wc) },
+  { label: wcLabel, value: fmt(wc) },
   { label: 'Distance = T ÷ WC (full precision)', value: d.km !== null ? `${fmt(d.km)} km` : '—' },
   { label: `Displayed distance (${DISTANCE_DISPLAY_DECIMALS} dp)`, value: d.km !== null ? `${fmt(d.km, DISTANCE_DISPLAY_DECIMALS)} km` : '—' },
   { label: 'Calculation rule version', value: `${optionLabel(ruleSetOptions, active.ruleSet)} · ${ENGINE_VERSION}` }];

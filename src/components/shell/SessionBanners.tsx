@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 
 /** Restore, read-only and sync-problem banners shared by every step page. */
 export function SessionBanners() {
-  const { active, derived, view, restoreInfo, dismissRestore, openSyncDialog, goTo } = useSession();
+  const { active, derived, view, restoreInfo, storageStatus, dismissRestore, openSyncDialog, goTo } = useSession();
   if (!active || !derived || view === 'list') return null;
 
   const stepLabel = workflowSteps.find((s) => s.id === restoreInfo?.step)?.label;
@@ -65,6 +65,14 @@ export function SessionBanners() {
         
           Your work is saved on this device, but the server has not received the latest changes.
         </Notice>
+      }
+      {storageStatus.health !== 'ready' &&
+      <Notice
+        tone="error"
+        title="Local device storage issue"
+      >
+        Failed to save changes to device IndexedDB ({storageStatus.lastError ?? 'storage unavailable'}). Your work is kept in active memory, but may be lost if this tab is closed.
+      </Notice>
       }
     </div>);
 

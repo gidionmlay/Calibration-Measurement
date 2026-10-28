@@ -131,7 +131,7 @@ function ReportBody({ session: s, derived: d, at }: ReportSnapshot) {
           ['Finish reading', s.distFinish || '—'],
           ['Rollover adjustment', dc ? dc.adjustment ? `+${dc.adjustment}` : 'None' : '—'],
           ['Total count (T)', dc ? String(dc.count) : '—'],
-          ['WC used', fmt(d.distance.wc)],
+          ['WC used', `${fmt(d.distance.wc)} (${d.distance.basis.source === 'final' ? 'final constant' : 'pre-cal WC'}${d.distance.basis.provisional ? ' · provisional' : ''})`],
           ['Distance = T ÷ WC', d.distance.km !== null ? `${fmt(d.distance.km, DISTANCE_DISPLAY_DECIMALS)} km (full ${fmt(d.distance.km)})` : '—']]
           } />
         

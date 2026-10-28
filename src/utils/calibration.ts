@@ -40,6 +40,13 @@ export interface CalibrationResult {
   spread: {high: {ride: number;count: number;};low: {ride: number;count: number;};range: number;} | null;
 }
 
+export interface ConstantBasis {
+  wc: number | null;
+  source: 'none' | 'pre' | 'final';
+  provisional: boolean;
+  reasons: ('preIncomplete' | 'postIncomplete' | 'ruleNotConfigured' | 'ruleNotApproved')[];
+}
+
 export interface DistanceResult {
   start: ReadingCheck;
   finish: ReadingCheck;
@@ -47,6 +54,7 @@ export interface DistanceResult {
   wc: number | null;
   km: number | null;
   complete: boolean;
+  basis: ConstantBasis;
 }
 
 export interface Comparison {
@@ -163,12 +171,56 @@ export function computeCalibration(rides: RideInput[], courseLengthRaw: string, 
   return { rides: resolved, counts, complete: wc !== null, total, average, courseLengthM, courseKm, cpk, wc, spread };
 }
 
-export function computeDistance(startRaw: string, finishRaw: string, wc: number | null, rollover: RolloverConfig): DistanceResult {
+export function resolveApplicableConstant(
+  rule: FinalConstantRule,
+  pre: number | null,
+  post: number | null,
+  isApproved = false
+): ConstantBasis {
+  if (pre === null) {
+    return { wc: null, source: 'none', provisional: true, reasons: ['preIncomplete'] };
+  }
+  if (post === null) {
+    return { wc: pre, source: 'pre', provisional: true, reasons: ['postIncomplete'] };
+  }
+  if (rule === 'notConfigured') {
+    return { wc: pre, source: 'pre', provisional: true, reasons: ['ruleNotConfigured'] };
+  }
+
+  const finalVal = selectFinalConstant(rule, pre, post);
+  if (finalVal === null) {
+    return { wc: pre, source: 'pre', provisional: true, reasons: ['ruleNotConfigured'] };
+  }
+
+  return {
+    wc: finalVal,
+    source: 'final',
+    provisional: !isApproved,
+    reasons: !isApproved ? ['ruleNotApproved'] : []
+  };
+}
+
+export function computeDistance(
+  startRaw: string,
+  finishRaw: string,
+  wcOrBasis: number | ConstantBasis | null,
+  rollover: RolloverConfig
+): DistanceResult {
   const start = parseReading(startRaw);
   const finish = parseReading(finishRaw);
   const count = start.ok && finish.ok ? countBetween(start.value, finish.value, rollover) : null;
+  const basis: ConstantBasis = typeof wcOrBasis === 'object' && wcOrBasis !== null
+    ? wcOrBasis
+    : {
+        wc: wcOrBasis,
+        source: wcOrBasis === null ? 'none' : 'pre',
+        provisional: true,
+        reasons: wcOrBasis === null ? ['preIncomplete'] : []
+      };
+
+  const wc = basis.wc;
   const km = count && count.ok && wc ? count.count / wc : null;
-  return { start, finish, count, wc, km, complete: km !== null };
+  return { start, finish, count, wc, km, complete: km !== null, basis };
 }
 
 export function compareConstants(pre: number | null, post: number | null): Comparison {

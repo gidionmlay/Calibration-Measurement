@@ -16,6 +16,11 @@ import { ENGINE_VERSION, fmt } from '../utils/calibration';
 import { optionLabel } from '../utils/format';
 import { prototypeOperator } from '../data/sessions';
 import { finalRuleOptions, ruleSetOptions, setLabels } from '../data/options';
+import {
+  loadSessionsFromStorage,
+  saveSessionsToStorage,
+  type StorageStatus
+} from '../utils/storage';
 
 export interface FocusRequest {
   id: string;
@@ -38,6 +43,7 @@ interface SessionContextValue {
   focusRequest: FocusRequest | null;
   restoreInfo: RestoreInfo | null;
   syncDialogRef: string | null;
+  storageStatus: StorageStatus;
   goTo: (view: ViewId, focusId?: string) => void;
   createSession: () => void;
   openSession: (reference: string) => void;
@@ -81,6 +87,50 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [restoreInfo, setRestoreInfo] = useState<RestoreInfo | null>(null);
   const [syncDialogRef, setSyncDialogRef] = useState<string | null>(null);
+  const [isHydrated, setIsHydrated] = useState<boolean>(false);
+  const [storageStatus, setStorageStatus] = useState<StorageStatus>({
+    health: 'ready',
+    persistedCount: 0,
+    lastPersistedAt: null,
+    lastError: null
+  });
+
+  // Asynchronous hydration: load saved sessions from IndexedDB on startup
+  useEffect(() => {
+    let mounted = true;
+    loadSessionsFromStorage()
+      .then(({ sessions: saved, metadata }) => {
+        if (!mounted) return;
+        if (saved.length > 0) {
+          setSessions(saved);
+          setStorageStatus({
+            health: 'ready',
+            persistedCount: saved.length,
+            lastPersistedAt: metadata?.lastPersistedAt ?? null,
+            lastError: null
+          });
+        } else {
+          // If storage is empty, initialize storage with current seed sessions
+          saveSessionsToStorage(sessions).catch((writeErr) => {
+            console.warn('Initial storage seed warning:', writeErr);
+          });
+        }
+        setIsHydrated(true);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setStorageStatus((prev) => ({
+          ...prev,
+          health: 'degraded',
+          lastError: err instanceof Error ? err.message : 'Storage initialization failure'
+        }));
+        setIsHydrated(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const active = sessions.find((s) => s.reference === activeRef) ?? null;
   const derived = useMemo(() => active ? deriveSession(active, connectivity) : null, [active, connectivity]);
@@ -90,7 +140,35 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
     setSessions((list) => list.map((s) => s.reference === ref ? fn(s) : s));
   }, []);
 
-  // Local autosave: "Saving…" settles to "Saved on this device".
+  // Local-first persistence: When sessions change and app is hydrated, persist to IndexedDB
+  useEffect(() => {
+    if (!isHydrated) return; // Prevent overwriting stored data before hydration completes
+    let mounted = true;
+    saveSessionsToStorage(sessions)
+      .then(() => {
+        if (!mounted) return;
+        setStorageStatus({
+          health: 'ready',
+          persistedCount: sessions.length,
+          lastPersistedAt: new Date().toISOString(),
+          lastError: null
+        });
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setStorageStatus((prev) => ({
+          ...prev,
+          health: 'degraded',
+          lastError: err instanceof Error ? err.message : 'Storage write error'
+        }));
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [sessions, isHydrated]);
+
+  // Local autosave status: "Saving…" settles to "Saved on this device".
   useEffect(() => {
     if (!sessions.some((s) => s.save === 'saving')) return;
     const t = window.setTimeout(() => {
@@ -354,6 +432,7 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
     focusRequest,
     restoreInfo,
     syncDialogRef,
+    storageStatus,
     goTo,
     createSession,
     openSession,

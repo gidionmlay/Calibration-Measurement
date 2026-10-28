@@ -27,13 +27,20 @@ export function ResultsSummary() {
     <section aria-label="Key results" className="rounded border border-line bg-panel">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <div className="border-b border-line p-5 lg:border-b-0 lg:border-r">
-          <p className="text-sm text-sub">Measured course distance</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-sub">Measured course distance</p>
+            {d.basis.provisional && (
+              <span className="rounded border border-line bg-canvas px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sub">
+                Provisional
+              </span>
+            )}
+          </div>
           <p className="mt-1 font-mono text-4xl font-semibold text-ink">
             {d.km !== null ? fmt(d.km, DISTANCE_DISPLAY_DECIMALS) : '—'}
             <span className="ml-1.5 font-sans text-lg font-normal text-sub">km</span>
           </p>
           <p className="mt-2 text-xs text-sub">
-            {d.km !== null && d.count && d.count.ok ? `Full precision ${fmt(d.km)} km · T ${d.count.count} ÷ WC ${fmt(d.wc)}` : 'Not available until course readings and pre-calibration are complete.'}
+            {d.km !== null && d.count && d.count.ok ? `Full precision ${fmt(d.km)} km · T ${d.count.count} ÷ WC ${fmt(d.wc)} (${d.basis.source === 'final' ? 'final constant' : 'provisional pre WC'})` : 'Not available until course readings and pre-calibration are complete.'}
           </p>
           {derived.reviews.distance === 'stale' && <p className="mt-2 text-xs font-semibold text-ink">Stale — recalculated after review</p>}
         </div>

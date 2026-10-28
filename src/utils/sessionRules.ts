@@ -13,6 +13,7 @@ import {
   computeCalibration,
   computeDistance,
   parseCourseLength,
+  resolveApplicableConstant,
   selectFinalConstant,
   type CalibrationResult,
   type Comparison,
@@ -20,6 +21,10 @@ import {
   type LengthCheck } from
 './calibration';
 import { reviewLabels, reviewSteps, setLabels } from '../data/options';
+
+export interface MeasurementPolicy {
+  isFinalRuleApproved?: (rule: SessionData['finalRule']) => boolean;
+}
 
 export type ReviewCurrency = 'none' | 'current' | 'stale';
 export type StepStatus = 'done' | 'attention' | 'stale' | 'todo';
@@ -109,18 +114,24 @@ function calibrationWarnings(set: CalibrationSet, result: CalibrationResult, rul
   return out;
 }
 
-export function deriveSession(s: SessionData, connectivity: Connectivity): Derived {
+export function deriveSession(
+  s: SessionData,
+  connectivity: Connectivity,
+  policy?: MeasurementPolicy
+): Derived {
   const rollover = { mode: s.rolloverMode, max: s.rolloverMax };
   const length = parseCourseLength(s.courseLength);
   const pre = computeCalibration(s.pre, s.courseLength, rollover);
   const post = computeCalibration(s.post, s.courseLength, rollover);
-  const distance = computeDistance(s.distStart, s.distFinish, pre.wc, rollover);
+  const isRuleApproved = policy?.isFinalRuleApproved ? policy.isFinalRuleApproved(s.finalRule) : false;
+  const applicableBasis = resolveApplicableConstant(s.finalRule, pre.wc, post.wc, isRuleApproved);
+  const distance = computeDistance(s.distStart, s.distFinish, applicableBasis, rollover);
   const comparison = compareConstants(pre.wc, post.wc);
   const finalConstant = selectFinalConstant(s.finalRule, pre.wc, post.wc);
 
   const signatures: Record<ReviewKey, string> = {
     pre: JSON.stringify([s.courseLength, s.rolloverMode, s.rolloverMax, pre.rides.map((r) => [r.startRaw, r.finishRaw])]),
-    distance: JSON.stringify([pre.wc, s.distStart, s.distFinish, s.rolloverMode, s.rolloverMax]),
+    distance: JSON.stringify([applicableBasis.wc, s.distStart, s.distFinish, s.rolloverMode, s.rolloverMax]),
     comparison: JSON.stringify([pre.wc, post.wc, s.finalRule])
   };
   const complete: Record<ReviewKey, boolean> = {
@@ -229,6 +240,16 @@ export function deriveSession(s: SessionData, connectivity: Connectivity): Deriv
     s.finalRule !== 'notConfigured' ?
     'A selection rule is configured and applied.' :
     'Final constant selection rule not configured. No final constant can be selected.',
+    step: 'setup',
+    focusId: 'final-rule'
+  },
+  {
+    id: 'policyApproval',
+    label: 'Governing measurement policy approved',
+    ok: isRuleApproved,
+    detail: isRuleApproved ?
+      'The governing standard and final-constant rule are approved.' :
+      'Governing measurement policy and final-constant rule are pending approval. Results are provisional and official finalization is blocked.',
     step: 'setup',
     focusId: 'final-rule'
   },
