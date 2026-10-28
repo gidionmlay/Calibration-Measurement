@@ -1,4 +1,3 @@
-import React from 'react';
 import { ChevronDownIcon } from 'lucide-react';
 import { ErrorText } from './ErrorText';
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { FileTextIcon } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
 import { formatDateTime } from '../utils/format';

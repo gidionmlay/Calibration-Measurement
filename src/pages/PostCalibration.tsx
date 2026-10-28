@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { PageHeader } from '../components/shell/PageHeader';
 import { StepFooter } from '../components/shell/StepFooter';

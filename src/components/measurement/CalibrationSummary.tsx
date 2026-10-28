@@ -1,4 +1,3 @@
-import React from 'react';
 import { CORRECTION_FACTOR, ENGINE_VERSION, WC_DISPLAY_DECIMALS, fmt, type CalibrationResult } from '../../utils/calibration';
 import { setLabels } from '../../data/options';
 import type { CalibrationSet } from '../../types/session';

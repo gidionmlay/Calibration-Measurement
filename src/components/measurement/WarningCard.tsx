@@ -1,4 +1,3 @@
-import React from 'react';
 import { TriangleAlertIcon } from 'lucide-react';
 import { useSession } from '../../contexts/SessionContext';
 import { workflowSteps } from '../../data/options';

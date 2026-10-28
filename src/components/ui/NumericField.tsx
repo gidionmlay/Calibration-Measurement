@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { Link2Icon } from 'lucide-react';
 import { ErrorText } from './ErrorText';
 

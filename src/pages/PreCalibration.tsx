@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { fmt } from '../utils/calibration';
 import { PageHeader } from '../components/shell/PageHeader';

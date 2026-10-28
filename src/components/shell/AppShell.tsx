@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Toaster } from 'sonner';
 import { useSession } from '../../contexts/SessionContext';
 import { Header } from './Header';

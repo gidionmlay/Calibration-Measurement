@@ -1,4 +1,3 @@
-import React from 'react';
 import { useSession } from '../../contexts/SessionContext';
 import { WC_DISPLAY_DECIMALS, fmt, fmtSigned } from '../../utils/calibration';
 import { optionLabel } from '../../utils/format';

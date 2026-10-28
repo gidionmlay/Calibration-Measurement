@@ -1,4 +1,3 @@
-import React from 'react';
 import { useSession } from '../../contexts/SessionContext';
 import { DISTANCE_DISPLAY_DECIMALS, WC_DISPLAY_DECIMALS, fmt, fmtSigned } from '../../utils/calibration';
 

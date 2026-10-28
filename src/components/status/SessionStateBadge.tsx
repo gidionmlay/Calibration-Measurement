@@ -1,4 +1,3 @@
-import React from 'react';
 import { CircleAlertIcon, CircleCheckIcon, CircleDashedIcon, CircleDotIcon, LockIcon } from 'lucide-react';
 import type { SessionState } from '../../types/session';
 

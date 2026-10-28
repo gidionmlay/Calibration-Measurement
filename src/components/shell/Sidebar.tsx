@@ -1,4 +1,3 @@
-import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FolderOpenIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from 'lucide-react';
 import { useSession } from '../../contexts/SessionContext';

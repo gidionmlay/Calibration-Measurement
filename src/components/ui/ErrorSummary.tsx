@@ -1,4 +1,3 @@
-import React from 'react';
 import { Notice } from './Notice';
 
 interface ErrorSummaryProps {

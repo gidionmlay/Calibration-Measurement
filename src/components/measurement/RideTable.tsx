@@ -1,4 +1,4 @@
-import React, { Fragment, useId, useState } from 'react';
+import { Fragment, useId, useState } from 'react';
 import { CheckIcon, CircleDashedIcon, OctagonXIcon, TriangleAlertIcon } from 'lucide-react';
 import { useSession } from '../../contexts/SessionContext';
 import { useMediaQuery } from '../../hooks/useMediaQuery';

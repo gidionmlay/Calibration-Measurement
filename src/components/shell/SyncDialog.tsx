@@ -1,4 +1,3 @@
-import React from 'react';
 import { useSession } from '../../contexts/SessionContext';
 import { formatDateTime } from '../../utils/format';
 import { Modal } from '../ui/Modal';

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PlusIcon, SearchIcon } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';

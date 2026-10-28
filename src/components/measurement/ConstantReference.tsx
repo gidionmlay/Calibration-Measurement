@@ -1,4 +1,3 @@
-import React from 'react';
 import { LockIcon } from 'lucide-react';
 import { useSession } from '../../contexts/SessionContext';
 import { ENGINE_VERSION, WC_DISPLAY_DECIMALS, fmt } from '../../utils/calibration';

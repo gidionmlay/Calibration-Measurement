@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { DISTANCE_DISPLAY_DECIMALS, fmt, readingError } from '../utils/calibration';
 import { optionLabel } from '../utils/format';

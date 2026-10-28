@@ -1,4 +1,3 @@
-import React from 'react';
 import { useSession } from '../../contexts/SessionContext';
 import { workflowSteps } from '../../data/options';
 import { formatDateTime } from '../../utils/format';

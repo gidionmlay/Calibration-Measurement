@@ -1,4 +1,3 @@
-import React from 'react';
 import { MotionConfig } from 'framer-motion';
 import { SessionProvider } from './contexts/SessionContext';
 import { AppShell } from './components/shell/AppShell';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { MenuIcon, WifiOffIcon } from 'lucide-react';
 import { useSession } from '../../contexts/SessionContext';
 import { SessionStateBadge } from '../status/SessionStateBadge';

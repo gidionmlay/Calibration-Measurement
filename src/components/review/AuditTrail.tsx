@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useSession } from '../../contexts/SessionContext';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { formatDateTime } from '../../utils/format';

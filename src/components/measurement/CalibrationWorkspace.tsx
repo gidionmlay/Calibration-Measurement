@@ -1,4 +1,3 @@
-import React from 'react';
 import { useSession } from '../../contexts/SessionContext';
 import { setLabels } from '../../data/options';
 import type { CalibrationSet } from '../../types/session';

@@ -1,4 +1,3 @@
-import React from 'react';
 import type { CalibrationResult } from '../../utils/calibration';
 
 export function RidesReadout({ result, caption }: {result: CalibrationResult;caption: string;}) {

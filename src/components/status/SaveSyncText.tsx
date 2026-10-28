@@ -1,4 +1,3 @@
-import React from 'react';
 import { CloudIcon, CloudUploadIcon, HardDriveIcon, LoaderCircleIcon, TriangleAlertIcon } from 'lucide-react';
 import type { SaveStatus, SyncStatus } from '../../types/session';
 
