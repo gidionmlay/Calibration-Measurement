@@ -64,4 +64,59 @@ describe('Session Rules and Workflow State Engine', () => {
     const connCheck = derivedOffline.checklist.find((c) => c.id === 'connection');
     expect(connCheck?.ok).toBe(false);
   });
+
+  it('blocks finalization when governing measurement policy is unapproved (MP-01..MP-09)', () => {
+    const session = blankSession('BC-2026-TEST', 'Tester');
+    const derived = deriveSession(session, 'online');
+    const policyCheck = derived.checklist.find((c) => c.id === 'policyApproval');
+    expect(policyCheck).toBeDefined();
+    expect(policyCheck?.ok).toBe(false);
+    expect(derived.blockers.map((b) => b.id)).toContain('policyApproval');
+  });
+
+  it('prohibits finalization bypass when callers do not supply accredited policy approval', () => {
+    const session: SessionData = {
+      ...blankSession('BC-2026-FULL', 'Tester'),
+      courseLength: '200',
+      ruleSet: 'ws-0.3',
+      rolloverMode: 'none',
+      finalRule: 'larger',
+      pre: [
+        { start: '11082', finish: '12021', startOverridden: false, overrideReason: '' },
+        { start: '', finish: '13042', startOverridden: false, overrideReason: '' },
+        { start: '', finish: '14052', startOverridden: false, overrideReason: '' },
+        { start: '', finish: '15052', startOverridden: false, overrideReason: '' },
+      ],
+      post: [
+        { start: '321000', finish: '322000', startOverridden: false, overrideReason: '' },
+        { start: '', finish: '323000', startOverridden: false, overrideReason: '' },
+        { start: '', finish: '324000', startOverridden: false, overrideReason: '' },
+        { start: '', finish: '325000', startOverridden: false, overrideReason: '' },
+      ],
+      distStart: '124002',
+      distFinish: '320456',
+    };
+
+    const d = deriveSession(session, 'online');
+    expect(d.pre.complete).toBe(true);
+    expect(d.post.complete).toBe(true);
+    expect(d.distance.complete).toBe(true);
+
+    // Populate all reviews and acknowledgements
+    session.reviews = {
+      pre: { signature: d.signatures.pre, at: new Date().toISOString() },
+      distance: { signature: d.signatures.distance, at: new Date().toISOString() },
+      comparison: { signature: d.signatures.comparison, at: new Date().toISOString() },
+    };
+    for (const w of d.warnings) {
+      session.acknowledgements[w.id] = { signature: w.signature, at: new Date().toISOString() };
+    }
+
+    const dAllComplete = deriveSession(session, 'online');
+    // Even when all steps, reviews, and warnings are resolved, policyApproval still blocks finalization
+    const remainingBlockers = dAllComplete.blockers.map((b) => b.id);
+    expect(remainingBlockers).toEqual(['policyApproval']);
+    expect(dAllComplete.state).not.toBe('Finalized');
+  });
 });
+

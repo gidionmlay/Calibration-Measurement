@@ -17,3 +17,55 @@ body {
 .font-mono {
   font-variant-numeric: tabular-nums;
 }
+
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Suppress UI controls, headers, sidebars, banners, buttons when printing */
+  header:not(article header),
+  nav,
+  aside,
+  button,
+  [role="button"],
+  .no-print {
+    display: none !important;
+  }
+
+  /* Make modal container flow naturally on printed pages */
+  .fixed {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  .overflow-y-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  article {
+    max-width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Keep provisional notices prominent and high-contrast in print */
+  [data-testid="provisional-report-notice"] {
+    border: 2px dashed #000000 !important;
+    background: #f8f8f8 !important;
+    color: #000000 !important;
+    display: block !important;
+  }
+
+  [data-testid="provisional-report-footer"] {
+    border-top: 2px dashed #000000 !important;
+    color: #000000 !important;
+    display: block !important;
+  }
+}

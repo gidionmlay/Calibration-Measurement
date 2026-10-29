@@ -1,5 +1,5 @@
 import React from 'react';
-import { PrinterIcon } from 'lucide-react';
+import { DownloadIcon, PrinterIcon } from 'lucide-react';
 import type { SessionData } from '../../types/session';
 import type { Derived } from '../../utils/sessionRules';
 import { DISTANCE_DISPLAY_DECIMALS, ENGINE_VERSION, WC_DISPLAY_DECIMALS, fmt, fmtSigned } from '../../utils/calibration';
@@ -8,6 +8,13 @@ import { consistencyOptions, finalRuleOptions, rolloverOptions, ruleSetOptions }
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { RidesReadout } from './RidesReadout';
+import {
+  PROVISIONAL_REPORT_NOTICE,
+  UNRATIFIED_POLICY_STATEMENT,
+  exportReportToJSON,
+  generateReportText,
+} from '../../utils/reportExport';
+import { triggerFileDownload } from '../../utils/auditExport';
 
 export interface ReportSnapshot {
   session: SessionData;
@@ -28,7 +35,7 @@ function Pairs({ rows }: {rows: [string, string][];}) {
   return (
     <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[220px_minmax(0,1fr)]">
       {rows.map(([k, v]) =>
-      <React.Fragment key={k}>
+        <React.Fragment key={k}>
           <dt className="text-sub">{k}</dt>
           <dd className="font-mono text-ink">{v}</dd>
         </React.Fragment>
@@ -38,6 +45,18 @@ function Pairs({ rows }: {rows: [string, string][];}) {
 }
 
 export function ReportPreview({ snapshot, onClose }: {snapshot: ReportSnapshot | null;onClose: () => void;}) {
+  const downloadText = () => {
+    if (!snapshot) return;
+    const content = generateReportText(snapshot.session, snapshot.derived, snapshot.at);
+    triggerFileDownload(`${snapshot.session.reference}_provisional_report.txt`, content, 'text/plain');
+  };
+
+  const downloadJson = () => {
+    if (!snapshot) return;
+    const content = exportReportToJSON(snapshot.session, snapshot.derived, snapshot.at);
+    triggerFileDownload(`${snapshot.session.reference}_provisional_report.json`, content, 'application/json');
+  };
+
   return (
     <Modal
       open={!!snapshot}
@@ -46,8 +65,14 @@ export function ReportPreview({ snapshot, onClose }: {snapshot: ReportSnapshot |
       title="Report preview"
       description="Generated from a single snapshot of the session."
       footer={
-      <>
-          <Button icon={<PrinterIcon />} onClick={() => window.print()}>
+        <>
+          <Button icon={<DownloadIcon />} onClick={downloadText} data-testid="download-report-txt-btn">
+            Export text
+          </Button>
+          <Button icon={<DownloadIcon />} onClick={downloadJson} data-testid="download-report-json-btn">
+            Export JSON
+          </Button>
+          <Button icon={<PrinterIcon />} onClick={() => window.print()} data-testid="print-report-btn">
             Print
           </Button>
           <Button variant="primary" onClick={onClose}>
@@ -67,6 +92,40 @@ function ReportBody({ session: s, derived: d, at }: ReportSnapshot) {
 
   return (
     <article className="mx-auto max-w-[760px] space-y-5 border border-line bg-panel p-6 text-ink md:p-8">
+      {/* Prominent Provisional Notice Header */}
+      <div
+        className="rounded border-2 border-dashed border-amber-600 bg-amber-50/90 p-4 text-amber-950 print:border-black print:bg-gray-100"
+        data-testid="provisional-report-notice"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-300/80 pb-2 print:border-black">
+          <span className="rounded bg-amber-700 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-white print:bg-black">
+            {PROVISIONAL_REPORT_NOTICE}
+          </span>
+          <span className="font-mono text-xs text-amber-800 print:text-black">
+            Standard: {optionLabel(ruleSetOptions, s.ruleSet)} (Unratified)
+          </span>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed print:text-black">
+          {UNRATIFIED_POLICY_STATEMENT}
+        </p>
+        <div className="mt-2.5 grid grid-cols-1 gap-1.5 border-t border-amber-200/80 pt-2 text-[11px] sm:grid-cols-2 print:border-black print:text-black">
+          <div>
+            <span className="font-semibold">Calculated state:</span> Complete ({ENGINE_VERSION})
+          </div>
+          <div>
+            <span className="font-semibold">Review state:</span> {d.state}
+          </div>
+          <div>
+            <span className="font-semibold">Finalized state:</span>{' '}
+            {s.finalized ? `Locally finalized (${formatDateTime(s.finalized.at)})` : 'Draft / Unfinalized'}
+          </div>
+          <div>
+            <span className="font-semibold">Official certification:</span>{' '}
+            <span className="font-bold text-red-700 print:text-black">PROHIBITED & BLOCKED</span>
+          </div>
+        </div>
+      </div>
+
       <header>
         <p className="text-xs text-sub">Road course measurement report</p>
         <h2 className="mt-1 font-mono text-xl font-semibold">{s.reference}</h2>
@@ -189,6 +248,20 @@ function ReportBody({ session: s, derived: d, at }: ReportSnapshot) {
           } />
         
       </Section>
+
+      {/* Prominent Provisional Notice Footer */}
+      <footer
+        className="border-t-2 border-dashed border-amber-600/60 pt-4 text-center text-xs text-sub print:border-black print:text-black"
+        data-testid="provisional-report-footer"
+      >
+        <p className="font-bold uppercase tracking-wider text-amber-950 print:text-black">
+          {PROVISIONAL_REPORT_NOTICE}
+        </p>
+        <p className="mt-1 text-[11px] leading-relaxed">
+          Generated by {ENGINE_VERSION}. Client-side stored record for verification and pilot data collection only.
+          Not approved for race course certification or record ratifications.
+        </p>
+      </footer>
     </article>);
 
 }

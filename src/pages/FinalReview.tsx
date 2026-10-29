@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { FileTextIcon } from 'lucide-react';
+import { DownloadIcon, FileTextIcon } from 'lucide-react';
+import { toast } from 'sonner';
 import { useSession } from '../contexts/SessionContext';
 import { formatDateTime } from '../utils/format';
+import { triggerFileDownload } from '../utils/auditExport';
 import { PageHeader } from '../components/shell/PageHeader';
 import { StepFooter } from '../components/shell/StepFooter';
 import { Notice } from '../components/ui/Notice';
@@ -15,7 +17,7 @@ import { FinalizeDialog } from '../components/review/FinalizeDialog';
 import { ReportPreview, type ReportSnapshot } from '../components/review/ReportPreview';
 
 export function FinalReview() {
-  const { active, derived, goTo, saveDraft, readOnly } = useSession();
+  const { active, derived, goTo, saveDraft, readOnly, exportSession } = useSession();
   const [snapshot, setSnapshot] = useState<ReportSnapshot | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
@@ -34,7 +36,17 @@ export function FinalReview() {
   };
 
   const generatePreview = () =>
-  setSnapshot({ session: JSON.parse(JSON.stringify(active)) as typeof active, derived, at: new Date().toISOString() });
+    setSnapshot({ session: JSON.parse(JSON.stringify(active)) as typeof active, derived, at: new Date().toISOString() });
+
+  const handleExportSession = () => {
+    try {
+      const json = exportSession(active.reference);
+      triggerFileDownload(`${active.reference}_session_backup.json`, json, 'application/json');
+      toast('Session exported', { description: `Session ${active.reference} downloaded as JSON backup.` });
+    } catch (e) {
+      toast('Export failed', { description: e instanceof Error ? e.message : 'Export failed' });
+    }
+  };
 
   return (
     <div>
@@ -113,9 +125,22 @@ export function FinalReview() {
         onBack={() => goTo('post')}
         onSaveDraft={readOnly ? undefined : saveDraft}
         secondary={
-        <Button icon={<FileTextIcon />} onClick={generatePreview}>
-            Generate preview
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              icon={<DownloadIcon className="h-4 w-4" />}
+              onClick={handleExportSession}
+              data-testid="final-review-export-btn"
+            >
+              Export session
+            </Button>
+            <Button
+              icon={<FileTextIcon />}
+              onClick={generatePreview}
+              data-testid="final-review-preview-btn"
+            >
+              Generate preview
+            </Button>
+          </div>
         }
         primaryLabel={active.finalized ? 'Back to sessions' : 'Finalize session'}
         onPrimary={active.finalized ? () => goTo('list') : onFinalize} />

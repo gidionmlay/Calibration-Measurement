@@ -5,7 +5,9 @@ import {
   isValidSessionRecord,
   loadSessionsFromStorage,
   saveSessionsToStorage,
-  STORAGE_SCHEMA_VERSION
+  STORAGE_SCHEMA_VERSION,
+  DB_NAME,
+  SESSIONS_STORE,
 } from './storage';
 import { blankSession } from './sessionFactory';
 import { deriveSession } from './sessionRules';
@@ -165,5 +167,45 @@ describe('Local-First IndexedDB Persistence Suite', () => {
     expect(metadata?.schemaVersion).toBe(STORAGE_SCHEMA_VERSION);
     expect(metadata?.sessionCount).toBe(1);
     expect(new Date(metadata!.lastPersistedAt).getTime()).toBeGreaterThan(0);
+  });
+
+  it('discards corrupt records directly from IndexedDB while preserving valid sessions', async () => {
+    const valid = blankSession('BC-VALID', 'Tester');
+    await saveSessionsToStorage([valid]);
+
+    // Inject a corrupt object into SESSIONS_STORE directly using fake-indexeddb
+    const req = indexedDB.open(DB_NAME, STORAGE_SCHEMA_VERSION);
+    await new Promise<void>((resolve, reject) => {
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(SESSIONS_STORE, 'readwrite');
+        tx.objectStore(SESSIONS_STORE).put({ reference: 'CORRUPT', invalidData: true });
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+      req.onerror = () => reject(req.error);
+    });
+
+    const result = await loadSessionsFromStorage();
+    expect(result.sessions.length).toBe(1);
+    expect(result.sessions[0].reference).toBe('BC-VALID');
+    expect(result.corruptCount).toBe(1);
+  });
+
+  it('handles database open failure gracefully when IndexedDB is unavailable', async () => {
+    const originalIDB = globalThis.indexedDB;
+    // @ts-expect-error simulating runtime without IndexedDB
+    globalThis.indexedDB = undefined;
+
+    try {
+      await expect(saveSessionsToStorage([blankSession('BC-TEST', 'Tester')])).rejects.toThrow(
+        /IndexedDB is not available/
+      );
+    } finally {
+      globalThis.indexedDB = originalIDB;
+    }
   });
 });

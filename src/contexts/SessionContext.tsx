@@ -21,6 +21,12 @@ import {
   saveSessionsToStorage,
   type StorageStatus
 } from '../utils/storage';
+import {
+  exportSessionToJSON,
+  prepareImportedSession,
+  detectLocalAuditLoss,
+  type SessionExportPayload,
+} from '../utils/sessionExport';
 
 export interface FocusRequest {
   id: string;
@@ -47,6 +53,11 @@ interface SessionContextValue {
   goTo: (view: ViewId, focusId?: string) => void;
   createSession: () => void;
   openSession: (reference: string) => void;
+  exportSession: (reference: string) => string;
+  importSessionPayload: (
+    payload: SessionExportPayload,
+    strategy: 'copy' | 'overwrite'
+  ) => Promise<{ session: SessionData; isCopy: boolean; originalRef: string; discrepancies: string[] }>;
   update: (mutator: (s: SessionData) => SessionData) => void;
   logEdit: (field: string, from: string, to: string) => void;
   overrideStart: (set: CalibrationSet, index: number, reason: string) => void;
@@ -355,26 +366,34 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
 
   const finalize = useCallback(() => {
     if (!activeRef || readOnly) return;
+    const currentSession = sessions.find((s) => s.reference === activeRef);
+    if (!currentSession) return;
+    const d = deriveSession(currentSession, connectivity);
+    if (d.blockers.length > 0) {
+      toast('Finalization blocked', {
+        description: `Cannot finalize session: ${d.blockers.length} unresolved checklist blocker(s).`,
+      });
+      return;
+    }
     patch(activeRef, (s) => {
-      const d = deriveSession(s, connectivity);
       const at = new Date().toISOString();
       return touch({
         ...s,
         finalized: { at, by: s.operator },
         lastStep: 'review',
         audit: [
-        ...s.audit,
-        makeEntry({
-          kind: 'finalization',
-          actor: s.operator,
-          summary: `Session finalized — course distance ${fmt(d.distance.km, 3)} km`,
-          note: `${optionLabel(ruleSetOptions, s.ruleSet)} · ${ENGINE_VERSION}`
-        })]
-
+          ...s.audit,
+          makeEntry({
+            kind: 'finalization',
+            actor: s.operator,
+            summary: `Session finalized — course distance ${fmt(d.distance.km, 3)} km`,
+            note: `${optionLabel(ruleSetOptions, s.ruleSet)} · ${ENGINE_VERSION}`,
+          }),
+        ],
       });
     });
     toast('Session finalized', { description: 'The record is now read-only.' });
-  }, [activeRef, readOnly, patch, connectivity]);
+  }, [activeRef, readOnly, sessions, connectivity, patch]);
 
   const requestSync = useCallback(
     (reference: string) => {
@@ -422,6 +441,59 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
     [patch, connectivity]
   );
 
+  const exportSession = useCallback(
+    (reference: string): string => {
+      const target = sessions.find((s) => s.reference === reference);
+      if (!target) throw new Error(`Session "${reference}" not found.`);
+      const d = deriveSession(target, connectivity);
+      return exportSessionToJSON(target, d);
+    },
+    [sessions, connectivity]
+  );
+
+  const importSessionPayload = useCallback(
+    async (
+      payload: SessionExportPayload,
+      strategy: 'copy' | 'overwrite'
+    ): Promise<{ session: SessionData; isCopy: boolean; originalRef: string; discrepancies: string[] }> => {
+      const originalRef = payload.session.reference;
+      const existing = sessions.find(
+        (s) => s.reference.toLowerCase() === originalRef.toLowerCase()
+      );
+
+      if (existing && strategy === 'overwrite') {
+        if (existing.finalized) {
+          throw new Error(
+            `Cannot overwrite session "${originalRef}": The existing local session is finalized and locked. Overwrite is prohibited.`
+          );
+        }
+        const lossCheck = detectLocalAuditLoss(existing, payload.session);
+        if (lossCheck.hasLoss) {
+          throw new Error(
+            `Cannot overwrite session "${originalRef}": ${lossCheck.reason || 'Local session audit loss detected.'}`
+          );
+        }
+      }
+
+      const prepared = prepareImportedSession(payload, sessions, strategy, prototypeOperator);
+      setSessions((prevList) => {
+        if (strategy === 'overwrite') {
+          const idx = prevList.findIndex(
+            (s) => s.reference.toLowerCase() === prepared.session.reference.toLowerCase()
+          );
+          if (idx >= 0) {
+            const updated = [...prevList];
+            updated[idx] = prepared.session;
+            return updated;
+          }
+        }
+        return [prepared.session, ...prevList];
+      });
+      return prepared;
+    },
+    [sessions]
+  );
+
   const value: SessionContextValue = {
     connectivity,
     sessions,
@@ -436,6 +508,8 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
     goTo,
     createSession,
     openSession,
+    exportSession,
+    importSessionPayload,
     update,
     logEdit,
     overrideStart,

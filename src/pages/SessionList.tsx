@@ -1,9 +1,18 @@
-import { useMemo, useState } from 'react';
-import { PlusIcon, SearchIcon } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { DownloadIcon, PlusIcon, SearchIcon, UploadIcon } from 'lucide-react';
+import { toast } from 'sonner';
 import { useSession } from '../contexts/SessionContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { deriveSession } from '../utils/sessionRules';
 import { formatDateTime } from '../utils/format';
+import { triggerFileDownload } from '../utils/auditExport';
+import {
+  generateCopyReference,
+  validateSessionImport,
+  detectLocalAuditLoss,
+  type SessionExportPayload,
+} from '../utils/sessionExport';
+import { ImportConflictDialog } from '../components/shell/ImportConflictDialog';
 import { Button } from '../components/ui/Button';
 import { SelectField } from '../components/ui/SelectField';
 import { Notice } from '../components/ui/Notice';
@@ -39,14 +48,101 @@ const syncOptions = [
 
 
 export function SessionList() {
-  const { sessions, connectivity, createSession, openSession, openSyncDialog } = useSession();
+  const {
+    sessions,
+    connectivity,
+    createSession,
+    openSession,
+    openSyncDialog,
+    exportSession,
+    importSessionPayload,
+  } = useSession();
   const isWide = useMediaQuery('(min-width: 768px)');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [conflictPayload, setConflictPayload] = useState<SessionExportPayload | null>(null);
   const [query, setQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
   const [syncFilter, setSyncFilter] = useState<SyncFilter>('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [operator, setOperator] = useState('all');
+
+  const handleExport = (reference: string) => {
+    try {
+      const json = exportSession(reference);
+      triggerFileDownload(`${reference}_session_backup.json`, json, 'application/json');
+      toast('Session exported', { description: `Session ${reference} downloaded as JSON backup.` });
+    } catch (e) {
+      toast('Export failed', { description: e instanceof Error ? e.message : 'Unknown export error' });
+    }
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    try {
+      const text = await file.text();
+      const validation = validateSessionImport(text);
+      if (!validation.valid) {
+        toast('Import failed', { description: validation.error });
+        return;
+      }
+
+      const payload = validation.payload;
+      const originalRef = payload.session.reference;
+      const exists = sessions.some((s) => s.reference.toLowerCase() === originalRef.toLowerCase());
+
+      if (exists) {
+        setConflictPayload(payload);
+        return;
+      }
+
+      const result = await importSessionPayload(payload, 'overwrite');
+      let desc = `Session ${result.session.reference} successfully restored.`;
+      if (result.discrepancies.length > 0) {
+        desc += ` Recalculation notice: ${result.discrepancies.join('; ')}`;
+      }
+      toast('Session imported', { description: desc });
+    } catch (err) {
+      toast('Import failed', { description: err instanceof Error ? err.message : 'Unexpected file read failure' });
+    }
+  };
+
+  const handleResolveConflict = async (strategy: 'copy' | 'overwrite') => {
+    if (!conflictPayload) return;
+    try {
+      const existing = sessions.find(
+        (s) => s.reference.toLowerCase() === conflictPayload.session.reference.toLowerCase()
+      );
+      if (existing && strategy === 'overwrite') {
+        if (existing.finalized) {
+          toast('Overwrite blocked', { description: 'Cannot overwrite a finalized session.' });
+          return;
+        }
+        const lossCheck = detectLocalAuditLoss(existing, conflictPayload.session);
+        if (lossCheck.hasLoss) {
+          toast('Overwrite blocked', {
+            description: `Local session contains ${lossCheck.missingEventsCount} audit event(s) not present in backup.`,
+          });
+          return;
+        }
+      }
+
+      const result = await importSessionPayload(conflictPayload, strategy);
+      setConflictPayload(null);
+      let desc = result.isCopy
+        ? `Imported as new copy "${result.session.reference}" (preserving original reference "${result.originalRef}").`
+        : `Existing session "${result.session.reference}" was safely replaced.`;
+      if (result.discrepancies.length > 0) {
+        desc += ` Note: ${result.discrepancies.join('; ')}`;
+      }
+      toast('Session imported', { description: desc });
+    } catch (err) {
+      toast('Import failed', { description: err instanceof Error ? err.message : 'Failed to import session.' });
+    }
+  };
 
   const rows: Row[] = useMemo(() => sessions.map((s) => ({ session: s, state: deriveSession(s, connectivity).state })), [sessions, connectivity]);
   const operators = Array.from(new Set(sessions.map((s) => s.operator)));
@@ -88,16 +184,40 @@ export function SessionList() {
 
   return (
     <div>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImportFile}
+        accept=".json,application/json"
+        className="hidden"
+        data-testid="import-file-input"
+      />
+
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Calibration sessions</h1>
           <p className="mt-1 text-sm text-sub">Create, continue, and review measurement sessions.</p>
         </div>
-        {sessions.length > 0 &&
-        <Button variant="primary" icon={<PlusIcon />} onClick={createSession} className="self-start md:self-auto">
-            New session
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <Button
+            icon={<UploadIcon className="h-4 w-4" />}
+            onClick={() => fileInputRef.current?.click()}
+            data-testid="import-backup-btn"
+          >
+            Import backup
           </Button>
-        }
+          {sessions.length > 0 &&
+            <Button
+              variant="primary"
+              icon={<PlusIcon />}
+              onClick={createSession}
+              className="self-start md:self-auto"
+              data-testid="new-session-btn"
+            >
+              New session
+            </Button>
+          }
+        </div>
       </div>
 
       {connectivity === 'offline' &&
@@ -208,9 +328,20 @@ export function SessionList() {
                         </td>
                         <td className="px-4 py-3">{syncCell(s)}</td>
                         <td className="px-4 py-3 text-right">
-                          <Button size="sm" onClick={() => openSession(s.reference)} aria-label={`${action} ${s.reference}`}>
-                            {action}
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button size="sm" onClick={() => openSession(s.reference)} aria-label={`${action} ${s.reference}`}>
+                              {action}
+                            </Button>
+                            <Button
+                              size="sm"
+                              icon={<DownloadIcon className="h-3.5 w-3.5" />}
+                              onClick={() => handleExport(s.reference)}
+                              aria-label={`Export backup for ${s.reference}`}
+                              data-testid={`export-session-${s.reference}`}
+                            >
+                              Export
+                            </Button>
+                          </div>
                         </td>
                       </tr>);
 
@@ -234,9 +365,20 @@ export function SessionList() {
                       <SessionStateBadge state={state} />
                     </div>
                     <div className="mt-3">{syncCell(s)}</div>
-                    <Button className="mt-3 w-full" onClick={() => openSession(s.reference)} aria-label={`${action} ${s.reference}`}>
-                      {action}
-                    </Button>
+                    <div className="mt-3 flex gap-2">
+                      <Button className="flex-1" onClick={() => openSession(s.reference)} aria-label={`${action} ${s.reference}`}>
+                        {action}
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        icon={<DownloadIcon className="h-3.5 w-3.5" />}
+                        onClick={() => handleExport(s.reference)}
+                        aria-label={`Export backup for ${s.reference}`}
+                        data-testid={`export-session-mobile-${s.reference}`}
+                      >
+                        Export
+                      </Button>
+                    </div>
                   </li>);
 
           })}
@@ -244,6 +386,30 @@ export function SessionList() {
         }
         </>
       }
+
+      {conflictPayload && (() => {
+        const existing = sessions.find(
+          (s) => s.reference.toLowerCase() === conflictPayload.session.reference.toLowerCase()
+        );
+        const existingFinalized = Boolean(existing?.finalized);
+        const auditLoss = existing
+          ? detectLocalAuditLoss(existing, conflictPayload.session)
+          : { hasLoss: false, missingEventsCount: 0 };
+
+        return (
+          <ImportConflictDialog
+            open={!!conflictPayload}
+            reference={conflictPayload.session.reference}
+            copyReference={generateCopyReference(conflictPayload.session.reference, sessions)}
+            existingFinalized={existingFinalized}
+            auditLossDetected={auditLoss.hasLoss}
+            auditLossCount={auditLoss.missingEventsCount}
+            auditLossReason={auditLoss.reason}
+            onResolve={handleResolveConflict}
+            onCancel={() => setConflictPayload(null)}
+          />
+        );
+      })()}
     </div>);
 
 }
