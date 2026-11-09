@@ -14,6 +14,7 @@ import {
   rolloverOptions,
   ruleSetOptions,
 } from '../data/options';
+import { getCertificateInfo, type MeasurerAttribution } from './certificate';
 
 export const PROVISIONAL_REPORT_NOTICE = 'PROVISIONAL — NOT FOR OFFICIAL CERTIFICATION';
 export const UNRATIFIED_POLICY_STATEMENT =
@@ -26,8 +27,10 @@ export const UNRATIFIED_POLICY_STATEMENT =
 export function generateReportText(
   session: SessionData,
   derived: Derived,
-  snapshotAt: string
+  snapshotAt: string,
+  measurer?: MeasurerAttribution
 ): string {
+  const cert = getCertificateInfo(session, derived, measurer);
   const dc = derived.distance.count && derived.distance.count.ok ? derived.distance.count : null;
   const notable = session.audit.filter((e) =>
     ['override', 'acknowledgement', 'conflict', 'invalidation', 'finalization'].includes(e.kind)
@@ -53,12 +56,19 @@ export function generateReportText(
     `- Review State: ${derived.state}`,
     `- Finalization State: ${session.finalized ? `Locally finalized by ${session.finalized.by} on ${formatDateTime(session.finalized.at)}` : 'Draft / Unfinalized'}`,
     `- Official Certification: PROHIBITED & BLOCKED (Requires ratified standard & accredited authority)`,
+    `- Cryptographic Audit Seal: SHA-256 ${cert.hash}`,
     subDivider,
     '',
-    `1. SESSION SETUP & CONFIGURATION`,
+    `1. FIELD MEASURER ATTESTATION & CONFIGURATION`,
+    `Field Measurer: ${cert.measurer.name}`,
+    `Affiliation / Organization: ${cert.measurer.organization}`,
+    ...(cert.measurer.email ? [`Contact Email: ${cert.measurer.email}`] : []),
+    `Cryptographic Stamp (SHA-256): ${cert.hash}`,
+    `Audit Ledger State: ${session.audit.length} chained entries recorded`,
     `Operator: ${session.operator}`,
     `Created: ${formatDateTime(session.createdAt)}`,
     `Last Updated: ${formatDateTime(session.updatedAt)}`,
+    ...(session.courseName ? [`Calibration Base Name: ${session.courseName}`] : []),
     `Reference Course Length: ${derived.length.ok ? `${fmt(derived.length.value)} m` : '—'}`,
     `Counter Rollover: ${optionLabel(rolloverOptions, session.rolloverMode)}`,
     `Ride-consistency Rule: ${optionLabel(consistencyOptions, session.consistencyRule)}`,
@@ -141,8 +151,10 @@ export function generateReportText(
 export function exportReportToJSON(
   session: SessionData,
   derived: Derived,
-  snapshotAt: string
+  snapshotAt: string,
+  measurer?: MeasurerAttribution
 ): string {
+  const cert = getCertificateInfo(session, derived, measurer);
   const dc = derived.distance.count && derived.distance.count.ok ? derived.distance.count : null;
 
   const payload = {
@@ -151,6 +163,15 @@ export function exportReportToJSON(
     exportedAt: new Date().toISOString(),
     snapshotAt,
     notice: PROVISIONAL_REPORT_NOTICE,
+    attestation: {
+      measurerName: cert.measurer.name,
+      measurerEmail: cert.measurer.email ?? null,
+      organization: cert.measurer.organization,
+      certificateHash: cert.hash,
+      shortHash: cert.shortHash,
+      isFinalized: cert.isFinalized,
+      auditRecordsCount: session.audit.length,
+    },
     regulatoryPolicy: {
       ratified: false,
       governingStandard: session.ruleSet,
@@ -176,6 +197,7 @@ export function exportReportToJSON(
     session: {
       reference: session.reference,
       operator: session.operator,
+      courseName: session.courseName ?? null,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
       courseLengthM: derived.length.ok ? derived.length.value : null,

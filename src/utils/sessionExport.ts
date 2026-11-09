@@ -167,6 +167,10 @@ export function validateSessionImport(rawJson: string): ValidationResult {
     return { valid: false, error: 'Import failed: Course length is missing or invalid.' };
   }
 
+  if (s.courseName !== undefined && typeof s.courseName !== 'string') {
+    return { valid: false, error: 'Import failed: Course name must be a string.' };
+  }
+
   const validRolloverModes: RolloverMode[] = ['notConfigured', 'none', 'wrap'];
   if (typeof s.rolloverMode !== 'string' || !validRolloverModes.includes(s.rolloverMode as RolloverMode)) {
     return { valid: false, error: `Import failed: Invalid rollover mode "${String(s.rolloverMode)}".` };
@@ -494,6 +498,7 @@ export function detectLocalAuditLoss(
     if (!isNaN(existingTime) && !isNaN(backupTime) && existingTime > backupTime) {
       const inputsDiffer =
         existingSession.courseLength !== backupSession.courseLength ||
+        existingSession.courseName !== backupSession.courseName ||
         existingSession.rolloverMode !== backupSession.rolloverMode ||
         existingSession.rolloverMax !== backupSession.rolloverMax ||
         existingSession.consistencyRule !== backupSession.consistencyRule ||

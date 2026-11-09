@@ -20,7 +20,7 @@ const filterKinds: Record<Exclude<Filter, 'all'>, AuditKind[]> = {
   calculations: ['recalculation', 'invalidation', 'version'],
   reviews: ['review', 'acknowledgement'],
   sync: ['sync', 'conflict'],
-  lifecycle: ['created', 'finalization']
+  lifecycle: ['created', 'finalization', 'revision', 'superseded']
 };
 
 const filterOptions = [
@@ -29,7 +29,7 @@ const filterOptions = [
 { value: 'calculations', label: 'Recalculations and versions' },
 { value: 'reviews', label: 'Reviews and acknowledgements' },
 { value: 'sync', label: 'Sync' },
-{ value: 'lifecycle', label: 'Creation and finalization' }];
+{ value: 'lifecycle', label: 'Creation, revision and finalization' }];
 
 
 const kindLabels: Record<AuditKind, string> = {
@@ -43,7 +43,9 @@ const kindLabels: Record<AuditKind, string> = {
   sync: 'Sync',
   conflict: 'Conflict resolved',
   finalization: 'Finalization',
-  version: 'Rules / version'
+  version: 'Rules / version',
+  revision: 'Revision created',
+  superseded: 'Superseded'
 };
 
 const PAGE = 10;

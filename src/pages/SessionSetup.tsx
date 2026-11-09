@@ -92,6 +92,32 @@ export function SessionSetup() {
           onChange={(v) => update((s) => ({ ...s, courseLength: v }))}
           onCommit={(f, t) => logEdit('Calibration course length (m)', f, t)}
           error={lengthErr} />
+
+        <div>
+          <label htmlFor="course-name" className="mb-1.5 block text-sm font-medium text-ink">
+            Calibration base name <span className="text-xs font-normal text-sub">(optional)</span>
+          </label>
+          <input
+            id="course-name"
+            type="text"
+            maxLength={255}
+            disabled={readOnly}
+            value={active.courseName || ''}
+            placeholder="e.g. Waterfront Boulevard 1000m Reference Course"
+            onChange={(e) => update((s) => ({ ...s, courseName: e.target.value }))}
+            onBlur={(e) => {
+              const trimmed = e.target.value.trim();
+              if (trimmed !== (active.courseName || '').trim()) {
+                logEdit('Calibration base name', active.courseName || '—', trimmed || '—');
+              }
+            }}
+            className="h-10 w-full rounded border border-line bg-panel px-3 text-sm text-ink outline-none placeholder:text-faint focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink disabled:bg-fill disabled:text-sub"
+            data-testid="course-name-input"
+          />
+          <p className="mt-1 text-xs text-sub">
+            Name or location of the calibration base or reference course. Included on official reports and certificates.
+          </p>
+        </div>
         
       </FormSection>
 

@@ -1,0 +1,25 @@
+# Docker Compose for Bicycle Calibration Local PostgreSQL Development
+# Bound strictly to loopback (127.0.0.1) on port 5433 (to avoid collision with host port 5432)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: calibration-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-calibration_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-calibration_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-calibration_dev}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - calibration_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-calibration_user} -d ${POSTGRES_DB:-calibration_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  calibration_pgdata:
+

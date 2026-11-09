@@ -79,4 +79,48 @@ describe('Workstream C: Provisional Notice on Every Report Output', () => {
     expect(json.states.localFinalized).toBe(true);
     expect(json.states.officialCertification).toBe('BLOCKED_AND_PROHIBITED');
   });
+
+  it('embeds measurer attribution and cryptographic SHA-256 seal in text and JSON exports', () => {
+    const attributedSession: SessionData = JSON.parse(JSON.stringify(session));
+    attributedSession.finalized = {
+      at: '2026-10-28T20:00:00.000Z',
+      by: 'Jane Doe',
+      email: 'jane.doe@worldathletics.org',
+      organization: 'World Athletics / AIMS',
+    };
+    const attributedDerived = deriveSession(attributedSession, 'online');
+
+    // 1. Text report verification
+    const textReport = generateReportText(attributedSession, attributedDerived, snapshotAt);
+    expect(textReport).toContain('Field Measurer: Jane Doe');
+    expect(textReport).toContain('Affiliation / Organization: World Athletics / AIMS');
+    expect(textReport).toContain('Contact Email: jane.doe@worldathletics.org');
+    expect(textReport).toMatch(/Cryptographic Stamp \(SHA-256\): [0-9a-f]{64}/);
+
+    // 2. JSON report verification
+    const jsonStr = exportReportToJSON(attributedSession, attributedDerived, snapshotAt);
+    const json = JSON.parse(jsonStr);
+    expect(json.attestation).toBeDefined();
+    expect(json.attestation.measurerName).toBe('Jane Doe');
+    expect(json.attestation.measurerEmail).toBe('jane.doe@worldathletics.org');
+    expect(json.attestation.organization).toBe('World Athletics / AIMS');
+    expect(json.attestation.certificateHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(json.attestation.isFinalized).toBe(true);
+  });
+
+  it('guarantees tamper-evidence: altering distance or ride readings produces a different SHA-256 hash', () => {
+    const sessionA: SessionData = JSON.parse(JSON.stringify(session));
+    const sessionB: SessionData = JSON.parse(JSON.stringify(session));
+
+    // Alter distance finish count in sessionB
+    sessionB.distFinish = String(Number(sessionA.distFinish || 10000) + 50);
+
+    const derivedA = deriveSession(sessionA, 'online');
+    const derivedB = deriveSession(sessionB, 'online');
+
+    const jsonA = JSON.parse(exportReportToJSON(sessionA, derivedA, snapshotAt));
+    const jsonB = JSON.parse(exportReportToJSON(sessionB, derivedB, snapshotAt));
+
+    expect(jsonA.attestation.certificateHash).not.toBe(jsonB.attestation.certificateHash);
+  });
 });

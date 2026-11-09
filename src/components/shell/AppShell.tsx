@@ -5,6 +5,7 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { WorkflowStepper } from './WorkflowStepper';
 import { SessionBanners } from './SessionBanners';
+import { SyncStatusBanner } from './SyncStatusBanner';
 import { SyncDialog } from './SyncDialog';
 import { SessionList } from '../../pages/SessionList';
 import { SessionSetup } from '../../pages/SessionSetup';
@@ -12,11 +13,12 @@ import { PreCalibration } from '../../pages/PreCalibration';
 import { CourseDistance } from '../../pages/CourseDistance';
 import { PostCalibration } from '../../pages/PostCalibration';
 import { FinalReview } from '../../pages/FinalReview';
+import { AdminDashboard } from '../../pages/AdminDashboard';
 
 export function AppShell() {
   const { view, active } = useSession();
   const [navOpen, setNavOpen] = useState(false);
-  const inSession = view !== 'list' && !!active;
+  const inSession = view !== 'list' && view !== 'admin' && !!active;
 
   const page = {
     list: <SessionList />,
@@ -24,7 +26,8 @@ export function AppShell() {
     pre: <PreCalibration />,
     distance: <CourseDistance />,
     post: <PostCalibration />,
-    review: <FinalReview />
+    review: <FinalReview />,
+    admin: <AdminDashboard />,
   }[view];
 
   return (
@@ -42,6 +45,7 @@ export function AppShell() {
             </div>
           }
           <div className="mx-auto w-full max-w-[1200px] px-4 pt-6 md:px-8 md:pt-8">
+            <SyncStatusBanner />
             <SessionBanners />
             {page}
             {view === 'list' && <div className="h-10" />}

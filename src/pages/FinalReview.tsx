@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { DownloadIcon, FileTextIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSession } from '../contexts/SessionContext';
+import { useAuth } from '../contexts/AuthContext';
 import { formatDateTime } from '../utils/format';
 import { triggerFileDownload } from '../utils/auditExport';
 import { PageHeader } from '../components/shell/PageHeader';
@@ -14,12 +15,15 @@ import { RecordSections } from '../components/review/RecordSections';
 import { AuditTrail } from '../components/review/AuditTrail';
 import { FinalizationChecklist } from '../components/review/FinalizationChecklist';
 import { FinalizeDialog } from '../components/review/FinalizeDialog';
+import { RevisionDialog } from '../components/review/RevisionDialog';
 import { ReportPreview, type ReportSnapshot } from '../components/review/ReportPreview';
 
 export function FinalReview() {
-  const { active, derived, goTo, saveDraft, readOnly, exportSession } = useSession();
+  const { active, derived, goTo, saveDraft, readOnly, exportSession, openSession } = useSession();
+  const { user } = useAuth();
   const [snapshot, setSnapshot] = useState<ReportSnapshot | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [revisionOpen, setRevisionOpen] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
   if (!active || !derived) return null;
 
@@ -36,7 +40,16 @@ export function FinalReview() {
   };
 
   const generatePreview = () =>
-    setSnapshot({ session: JSON.parse(JSON.stringify(active)) as typeof active, derived, at: new Date().toISOString() });
+    setSnapshot({
+      session: JSON.parse(JSON.stringify(active)) as typeof active,
+      derived,
+      at: new Date().toISOString(),
+      measurer: {
+        name: active.finalized?.by || user?.display_name || user?.email || active.operator,
+        email: active.finalized?.email || user?.email || undefined,
+        organization: active.finalized?.organization || user?.organization || undefined,
+      },
+    });
 
   const handleExportSession = () => {
     try {
@@ -53,19 +66,42 @@ export function FinalReview() {
       <PageHeader title="Review and report" description="Check the complete record, resolve open items, then preview and finalize the report." />
 
       <div className="mb-6 space-y-3 empty:hidden">
-        {active.finalized &&
-        <Notice
-          tone="success"
-          title="Finalized — read-only record"
-          actions={
-          <Button size="sm" disabled>
+        {active.finalized && !active.supersededByRef && (
+          <Notice
+            tone="success"
+            title="Finalized — read-only record"
+            actions={
+              <Button size="sm" onClick={() => setRevisionOpen(true)} data-testid="start-revision-btn">
                 Start formal revision
               </Button>
-          }>
-          
-            Finalized {formatDateTime(active.finalized.at)} by {active.finalized.by}. Corrections require an authorized formal revision that preserves this original. Your account does not have revision permission in this prototype.
+            }
+          >
+            <div>
+              Finalized {formatDateTime(active.finalized.at)} by <strong>{active.finalized.by}</strong>
+              {active.finalized.organization ? ` · ${active.finalized.organization}` : ''}. Corrections require an authorized formal revision that preserves this original.
+            </div>
+            {active.finalized.certificateHash && (
+              <div className="mt-1 font-mono text-xs text-emerald-800">
+                Cryptographic Seal: SHA-256 <span className="font-semibold">{active.finalized.certificateHash}</span>
+              </div>
+            )}
           </Notice>
-        }
+        )}
+        {active.supersededByRef && (
+          <Notice
+            tone="warning"
+            title={`Superseded by formal revision ${active.supersededByRef}`}
+            actions={
+              <Button size="sm" onClick={() => {
+                if (active.supersededByRef) openSession(active.supersededByRef);
+              }}>
+                View active revision
+              </Button>
+            }
+          >
+            This finalized session has been superseded by a formal revision. It remains permanently archived as an immutable audit record.
+          </Notice>
+        )}
         {!active.finalized && showBlocked && blockers.length > 0 &&
         <Notice id="finalize-blocked" tone="error" title={`Finalization blocked — ${blockers.length} item${blockers.length === 1 ? '' : 's'} need attention`} live>
             <ul className="list-disc space-y-1 pl-5">
@@ -148,6 +184,7 @@ export function FinalReview() {
 
       <ReportPreview snapshot={snapshot} onClose={() => setSnapshot(null)} />
       <FinalizeDialog open={confirmOpen} onClose={() => setConfirmOpen(false)} />
+      <RevisionDialog open={revisionOpen} onClose={() => setRevisionOpen(false)} />
     </div>);
 
 }

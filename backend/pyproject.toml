@@ -7,6 +7,11 @@ dependencies = [
     "fastapi>=0.110.0",
     "pydantic>=2.6.0",
     "uvicorn>=0.28.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "psycopg[binary]>=3.1.0",
+    "pyjwt[crypto]>=2.8.0",
+    "cryptography>=42.0.0",
 ]
 
 [project.optional-dependencies]
@@ -18,3 +23,6 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "backend"]
+filterwarnings = [
+    "ignore::starlette.exceptions.StarletteDeprecationWarning",
+]

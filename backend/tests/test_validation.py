@@ -97,3 +97,58 @@ def test_comparison_endpoint_rejects_non_finite_constants():
         response = client.post("/api/v1/calculations/compare", json=payload)
         assert response.status_code == 422
         assert response.headers["content-type"] == "application/problem+json"
+
+
+def test_session_creation_rejects_course_length_exceeding_scale(auth_client: TestClient):
+    """Verify course_length_m with > 4 decimal places is rejected (DEF-02 prevention)."""
+    payload = {
+        "name": "Excess Scale Session",
+        "course_length_m": "200.12345",  # 5 decimal places (> 4)
+        "rides": [],
+    }
+    response = auth_client.post("/api/v1/sessions", json=payload)
+    assert response.status_code == 422
+    assert response.headers["content-type"] == "application/problem+json"
+    data = response.json()
+    assert "cannot exceed 4 decimal places" in str(data)
+
+
+def test_session_creation_rejects_course_length_exceeding_precision(auth_client: TestClient):
+    """Verify course_length_m with > 12 digits precision is rejected."""
+    payload = {
+        "name": "Excess Precision Session",
+        "course_length_m": "123456789.1234",  # 13 digits (> 12)
+        "rides": [],
+    }
+    response = auth_client.post("/api/v1/sessions", json=payload)
+    assert response.status_code == 422
+    assert response.headers["content-type"] == "application/problem+json"
+    data = response.json()
+    assert "cannot exceed 12 digits" in str(data)
+
+
+def test_session_creation_rejects_temperature_exceeding_scale_and_precision(auth_client: TestClient):
+    """Verify temperature_c with > 2 decimal places or > 5 digits precision is rejected."""
+    # Scale violation
+    payload_scale = {
+        "name": "Excess Temp Scale Session",
+        "course_length_m": "200.0000",
+        "temperature_c": "25.123",  # 3 decimal places (> 2)
+        "rides": [],
+    }
+    res_scale = auth_client.post("/api/v1/sessions", json=payload_scale)
+    assert res_scale.status_code == 422
+    assert "cannot exceed 2 decimal places" in str(res_scale.json())
+
+    # Precision/bounds violation
+    payload_prec = {
+        "name": "Excess Temp Precision Session",
+        "course_length_m": "200.0000",
+        "temperature_c": "1234.56",  # 6 total digits (> 5) / exceeds 999.99
+        "rides": [],
+    }
+    res_prec = auth_client.post("/api/v1/sessions", json=payload_prec)
+    assert res_prec.status_code == 422
+    err_str = str(res_prec.json())
+    assert "out of allowable bounds" in err_str or "cannot exceed 5 digits" in err_str
+

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { FolderOpenIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from 'lucide-react';
+import { BarChart3Icon, FolderOpenIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from 'lucide-react';
 import { useSession } from '../../contexts/SessionContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface NavItem {
   key: string;
@@ -41,10 +42,22 @@ function NavList({ items, compact, onAfterSelect }: {items: NavItem[];compact: b
 
 export function Sidebar({ open, onClose }: {open: boolean;onClose: () => void;}) {
   const { view, active, goTo, createSession, openSession } = useSession();
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole('admin') || hasRole('supervisor');
 
   const items: NavItem[] = [
   { key: 'sessions', label: 'Sessions', Icon: ListIcon, active: view === 'list', onSelect: () => goTo('list') },
   { key: 'new', label: 'New session', Icon: PlusIcon, active: false, onSelect: createSession }];
+
+  if (isAdmin) {
+    items.push({
+      key: 'admin',
+      label: 'Admin Overview',
+      Icon: BarChart3Icon,
+      active: view === 'admin',
+      onSelect: () => goTo('admin'),
+    });
+  }
 
   if (active) {
     items.push({

@@ -27,6 +27,15 @@ import {
   detectLocalAuditLoss,
   type SessionExportPayload,
 } from '../utils/sessionExport';
+import { syncManager } from '../services/sync';
+import { api } from '../services/api';
+import { useAuth } from './AuthContext';
+import { computeCertificateHash } from '../utils/certificate';
+import {
+  toSessionCreatePayload,
+  toSessionUpdatePayload,
+  mergeBackendSession,
+} from '../services/sessions/sessionAdapter';
 
 export interface FocusRequest {
   id: string;
@@ -67,6 +76,7 @@ interface SessionContextValue {
   markReviewed: (key: ReviewKey) => void;
   acknowledge: (warningId: string) => void;
   finalize: () => void;
+  createRevision: (reason: string) => Promise<SessionData | null>;
   requestSync: (reference: string) => void;
   resolveConflict: (reference: string, choice: 'local' | 'server') => void;
   openSyncDialog: (reference: string | null) => void;
@@ -92,6 +102,7 @@ interface SessionProviderProps {
 }
 
 export function SessionProvider({ connectivity, listScenario, children }: SessionProviderProps) {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<SessionData[]>(() => buildSeedSessions(connectivity, listScenario));
   const [activeRef, setActiveRef] = useState<string | null>(null);
   const [view, setView] = useState<ViewId>('list');
@@ -188,22 +199,86 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
     return () => window.clearTimeout(t);
   }, [sessions]);
 
-  // Server sync: only when online and the change has been queued.
+  // SyncManager initialization & event wiring
   useEffect(() => {
-    if (connectivity === 'offline') return;
-    const ready = (s: SessionData) => s.sync === 'pending' && s.save === 'saved' && s.syncQueued && !s.conflict;
-    if (!sessions.some(ready)) return;
-    const t = window.setTimeout(() => {
-      setSessions((list) => list.map((s) => ready(s) ? { ...s, sync: 'synced', syncQueued: false } : s));
-    }, 1500);
-    return () => window.clearTimeout(t);
-  }, [sessions, connectivity]);
+    void syncManager.init();
+    syncManager.setOnline(connectivity !== 'offline');
+
+    const unsubscribeSynced = syncManager.onSessionSynced((ref, remote) => {
+      setSessions((list) =>
+        list.map((s) => (s.reference === ref ? mergeBackendSession(s, remote) : s)),
+      );
+    });
+
+    const unsubscribeConflict = syncManager.onConflict((op, conflict) => {
+      setSessions((list) =>
+        list.map((s) =>
+          s.reference === op.sessionRef
+            ? {
+                ...s,
+                sync: 'issue',
+                syncQueued: false,
+                conflict: {
+                  label: `Version Conflict (v${conflict.expectedVersion} vs v${conflict.currentVersion})`,
+                  set: 'pre',
+                  index: 0,
+                  local: `Local Version ${conflict.expectedVersion}`,
+                  server: `Server Version ${conflict.currentVersion}`,
+                  localAt: s.updatedAt,
+                  serverAt: conflict.detectedAt,
+                  serverActor: 'Remote Modifier',
+                },
+              }
+            : s,
+        ),
+      );
+      toast.error('Sync Conflict Detected', {
+        description: `Session was modified on the server (expected v${conflict.expectedVersion}, current v${conflict.currentVersion}).`,
+      });
+    });
+
+    return () => {
+      unsubscribeSynced();
+      unsubscribeConflict();
+    };
+  }, [connectivity]);
+
+  // Server sync: enqueue ready changes into SyncManager
+  useEffect(() => {
+    const ready = (s: SessionData) =>
+      s.sync === 'pending' && s.save === 'saved' && s.syncQueued && !s.conflict;
+    const candidates = sessions.filter(ready);
+    if (candidates.length === 0) return;
+
+    for (const candidate of candidates) {
+      if (!candidate.backendId) {
+        void syncManager.enqueue({
+          sessionRef: candidate.reference,
+          type: 'create_session',
+          payload: toSessionCreatePayload(candidate),
+        });
+      } else {
+        const expectedVersion = candidate.backendVersion || 1;
+        void syncManager.enqueue({
+          sessionRef: candidate.reference,
+          backendId: candidate.backendId,
+          type: 'update_session',
+          expectedVersion,
+          payload: toSessionUpdatePayload(candidate, expectedVersion),
+        });
+      }
+    }
+
+    setSessions((list) =>
+      list.map((s) => (ready(s) ? { ...s, syncQueued: false } : s)),
+    );
+  }, [sessions]);
 
   const goTo = useCallback(
     (next: ViewId, focusId?: string) => {
       setView(next);
       setRestoreInfo(null);
-      if (next !== 'list' && activeRef) {
+      if (next !== 'list' && next !== 'admin' && activeRef) {
         setSessions((list) => list.map((s) => s.reference === activeRef && !s.finalized ? { ...s, lastStep: next } : s));
       }
       if (focusId) {
@@ -225,7 +300,8 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
   const createSession = useCallback(() => {
     const nums = sessions.map((s) => Number(s.reference.split('-')[2]) || 0);
     const ref = `BC-2026-${String(Math.max(0, ...nums) + 1).padStart(3, '0')}`;
-    const s = blankSession(ref, prototypeOperator);
+    const operatorName = user?.display_name || user?.email || prototypeOperator;
+    const s = blankSession(ref, operatorName);
     setSessions((list) => [s, ...list]);
     setActiveRef(ref);
     setView('setup');
@@ -237,7 +313,7 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
       'Saved on this device as a draft. It will sync when the connection returns.' :
       'Saved on this device as a draft.'
     });
-  }, [sessions, connectivity]);
+  }, [sessions, connectivity, user]);
 
   const openSession = useCallback(
     (reference: string) => {
@@ -377,23 +453,147 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
     }
     patch(activeRef, (s) => {
       const at = new Date().toISOString();
+      const measurerName = user?.display_name || user?.email || s.operator;
+      const measurerEmail = user?.email || undefined;
+      const organization = user?.organization || undefined;
+      const certHash = computeCertificateHash(s, d, at, {
+        name: measurerName,
+        email: measurerEmail,
+        organization,
+      });
+
       return touch({
         ...s,
-        finalized: { at, by: s.operator },
+        operator: measurerName,
+        finalized: {
+          at,
+          by: measurerName,
+          email: measurerEmail,
+          organization,
+          certificateHash: certHash,
+        },
         lastStep: 'review',
         audit: [
           ...s.audit,
           makeEntry({
             kind: 'finalization',
-            actor: s.operator,
-            summary: `Session finalized — course distance ${fmt(d.distance.km, 3)} km`,
-            note: `${optionLabel(ruleSetOptions, s.ruleSet)} · ${ENGINE_VERSION}`,
+            actor: measurerName,
+            summary: `Session finalized — course distance ${fmt(d.distance.km, 3)} km (SHA-256: ${certHash.slice(0, 10)}...)`,
+            note: `${optionLabel(ruleSetOptions, s.ruleSet)} · ${ENGINE_VERSION}${organization ? ` · ${organization}` : ''}`,
           }),
         ],
       });
     });
     toast('Session finalized', { description: 'The record is now read-only.' });
-  }, [activeRef, readOnly, sessions, connectivity, patch]);
+  }, [activeRef, readOnly, sessions, connectivity, patch, user]);
+
+  const createRevision = useCallback(
+    async (reason: string): Promise<SessionData | null> => {
+      if (!activeRef) return null;
+      const parentSession = sessions.find((s) => s.reference === activeRef);
+      if (!parentSession || !parentSession.finalized) {
+        toast('Revision not allowed', {
+          description: 'Only finalized sessions can be formally revised.',
+        });
+        return null;
+      }
+
+      const trimmed = reason.trim();
+      if (trimmed.length < 10) {
+        toast('Invalid revision reason', {
+          description: 'Revision justification must be at least 10 characters.',
+        });
+        return null;
+      }
+
+      let revisionRef = `${parentSession.reference}-R1`;
+      let count = 1;
+      while (sessions.some((s) => s.reference === revisionRef)) {
+        count++;
+        revisionRef = `${parentSession.reference}-R${count}`;
+      }
+
+      const now = new Date().toISOString();
+      let backendChildId: string | undefined;
+      let backendChildVersion: number | undefined;
+
+      if (connectivity !== 'offline' && parentSession.backendId) {
+        try {
+          const remoteChild = await api.sessions.createRevision(parentSession.backendId, {
+            revision_reason: trimmed,
+          });
+          backendChildId = remoteChild.id;
+          backendChildVersion = remoteChild.version;
+        } catch (err) {
+          console.warn('Backend revision creation deferred to sync queue:', err);
+        }
+      }
+
+      const childSession: SessionData = {
+        ...JSON.parse(JSON.stringify(parentSession)),
+        reference: revisionRef,
+        createdAt: now,
+        updatedAt: now,
+        setupSaved: true,
+        finalized: null,
+        reviews: {},
+        acknowledgements: {},
+        lastStep: 'setup',
+        save: 'saved',
+        sync: backendChildId ? 'synced' : 'pending',
+        syncQueued: !backendChildId,
+        conflict: null,
+        backendId: backendChildId,
+        backendVersion: backendChildVersion,
+        supersedesRef: parentSession.reference,
+        supersededByRef: undefined,
+        revisionReason: trimmed,
+        audit: [
+          makeEntry({
+            kind: 'revision',
+            actor: parentSession.operator,
+            summary: `Formal revision created superseding ${parentSession.reference}`,
+            reason: trimmed,
+            from: parentSession.reference,
+            to: revisionRef,
+          }),
+        ],
+      };
+
+      setSessions((prev) => {
+        const updated = prev.map((s) =>
+          s.reference === parentSession.reference
+            ? {
+                ...s,
+                supersededByRef: revisionRef,
+                updatedAt: now,
+                audit: [
+                  ...s.audit,
+                  makeEntry({
+                    kind: 'superseded',
+                    actor: parentSession.operator,
+                    summary: `Superseded by formal revision ${revisionRef}`,
+                    reason: trimmed,
+                    from: parentSession.reference,
+                    to: revisionRef,
+                  }),
+                ],
+              }
+            : s,
+        );
+        return [childSession, ...updated];
+      });
+
+      setActiveRef(revisionRef);
+      setView('setup');
+      window.scrollTo({ top: 0 });
+      toast(`Revision ${revisionRef} created`, {
+        description: `Formal revision child created. Parent ${parentSession.reference} is marked superseded.`,
+      });
+      return childSession;
+    },
+    [activeRef, sessions, connectivity],
+  );
 
   const requestSync = useCallback(
     (reference: string) => {
@@ -404,6 +604,7 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
         save: 'saved',
         audit: s.sync === 'issue' ? [...s.audit, makeEntry({ kind: 'sync', actor: 'System', summary: 'Sync retried after a failed attempt' })] : s.audit
       }));
+      void syncManager.retry();
       setSyncDialogRef(null);
       toast('Sync started', { description: `${reference} is being sent to the server.` });
     },
@@ -412,6 +613,13 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
 
   const resolveConflict = useCallback(
     (reference: string, choice: 'local' | 'server') => {
+      const conflictOp = syncManager
+        .getQueue()
+        .find((o) => o.sessionRef === reference && o.status === 'conflict');
+      if (conflictOp) {
+        void syncManager.resolveConflict(conflictOp.id, choice);
+      }
+
       patch(reference, (s) => {
         if (!s.conflict) return s;
         const c = s.conflict;
@@ -519,6 +727,7 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
     markReviewed,
     acknowledge,
     finalize,
+    createRevision,
     requestSync,
     resolveConflict,
     openSyncDialog: setSyncDialogRef,

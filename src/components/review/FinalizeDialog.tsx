@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from '../../contexts/SessionContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { DISTANCE_DISPLAY_DECIMALS, WC_DISPLAY_DECIMALS, fmt } from '../../utils/calibration';
 import { optionLabel } from '../../utils/format';
 import { finalRuleOptions } from '../../data/options';
@@ -8,6 +9,7 @@ import { Button } from '../ui/Button';
 
 export function FinalizeDialog({ open, onClose }: {open: boolean;onClose: () => void;}) {
   const { active, derived, finalize } = useSession();
+  const { user } = useAuth();
   const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => {
@@ -15,21 +17,26 @@ export function FinalizeDialog({ open, onClose }: {open: boolean;onClose: () => 
   }, [open]);
 
   if (!active || !derived) return null;
-  const rows = [
-  { label: 'Session reference', value: active.reference },
-  { label: 'Calibration course length', value: derived.length.ok ? `${fmt(derived.length.value)} m` : '—' },
-  { label: 'Measured course distance', value: `${fmt(derived.distance.km, DISTANCE_DISPLAY_DECIMALS)} km (full: ${fmt(derived.distance.km)})` },
-  { label: 'Pre-calibration WC', value: fmt(derived.pre.wc, WC_DISPLAY_DECIMALS) },
-  { label: 'Post-calibration WC', value: fmt(derived.post.wc, WC_DISPLAY_DECIMALS) },
-  { label: 'Final constant', value: `${fmt(derived.finalConstant, WC_DISPLAY_DECIMALS)} — ${optionLabel(finalRuleOptions, active.finalRule)}` }];
+  const measurerName = user?.display_name || user?.email || active.operator;
+  const organization = user?.organization || 'Independent Accredited Measurer';
 
+  const rows = [
+    { label: 'Session reference', value: active.reference },
+    { label: 'Attributed measurer', value: measurerName },
+    { label: 'Organization / affiliation', value: organization },
+    { label: 'Calibration course length', value: derived.length.ok ? `${fmt(derived.length.value)} m` : '—' },
+    { label: 'Measured course distance', value: `${fmt(derived.distance.km, DISTANCE_DISPLAY_DECIMALS)} km (full: ${fmt(derived.distance.km)})` },
+    { label: 'Pre-calibration WC', value: fmt(derived.pre.wc, WC_DISPLAY_DECIMALS) },
+    { label: 'Post-calibration WC', value: fmt(derived.post.wc, WC_DISPLAY_DECIMALS) },
+    { label: 'Final constant', value: `${fmt(derived.finalConstant, WC_DISPLAY_DECIMALS)} — ${optionLabel(finalRuleOptions, active.finalRule)}` },
+  ];
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       title={`Finalize ${active.reference}?`}
-      description="Finalization is recorded in the audit trail and makes the session read-only."
+      description="Finalization locks the session, applies a cryptographic SHA-256 seal, and records the event in the audit trail."
       footer={
       <>
           <Button onClick={onClose}>Cancel</Button>
@@ -56,7 +63,7 @@ export function FinalizeDialog({ open, onClose }: {open: boolean;onClose: () => 
       </dl>
       <label className="mt-5 flex cursor-pointer items-start gap-3 rounded border border-line p-3 text-sm">
         <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-ink" />
-        <span>I have reviewed this record. Finalized sessions are read-only; later corrections need an authorized formal revision that keeps this original.</span>
+        <span>I have reviewed this record. Finalized sessions are read-only and cryptographically sealed; later corrections need an authorized formal revision that keeps this original.</span>
       </label>
     </Modal>);
 

@@ -41,9 +41,10 @@ export function RecordSections() {
 
   return (
     <div className="space-y-3">
-      <Disclosure id="record-setup" title="1. Session setup" summary={`${derived.length.ok ? `${fmt(derived.length.value)} m` : 'Length missing'} · ${optionLabel(ruleSetOptions, active.ruleSet)}`}>
+      <Disclosure id="record-setup" title="1. Session setup" summary={`${active.courseName ? `${active.courseName} · ` : ''}${derived.length.ok ? `${fmt(derived.length.value)} m` : 'Length missing'} · ${optionLabel(ruleSetOptions, active.ruleSet)}`}>
         <Pairs
           rows={[
+          ...(active.courseName ? [{ label: 'Calibration base name', value: active.courseName }] : []),
           { label: 'Course length', value: derived.length.ok ? `${fmt(derived.length.value)} m` : '—' },
           { label: 'Operator', value: active.operator },
           { label: 'Counter rollover', value: `${optionLabel(rolloverOptions, active.rolloverMode)}${active.rolloverMode === 'wrap' ? ` (max ${active.rolloverMax || '—'})` : ''}` },

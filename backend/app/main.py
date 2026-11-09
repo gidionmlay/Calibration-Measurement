@@ -2,10 +2,14 @@
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes.calculations import router as calculations_router
+from app.api.routes.sessions import router as sessions_router
+from app.api.routes.auth import router as auth_router
+from app.api.routes.admin import router as admin_router
 from app.schemas.calculations import ProblemDetail
 from app.services.calculation_engine import ENGINE_VERSION, RULESET_VERSION
 
@@ -21,8 +25,25 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# Enable CORS for frontend dev server and production clients
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Include Versioned API Routes
 app.include_router(calculations_router, prefix="/api/v1")
+app.include_router(sessions_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(admin_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health", tags=["System"])
@@ -50,10 +71,13 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         detail=str(exc.detail),
         instance=str(request.url.path),
     )
+    headers = {"Content-Type": "application/problem+json"}
+    if exc.headers:
+        headers.update(exc.headers)
     return JSONResponse(
         status_code=exc.status_code,
         content=problem.model_dump(exclude_none=True),
-        headers={"Content-Type": "application/problem+json"},
+        headers=headers,
     )
 
 

@@ -23,7 +23,7 @@ test.describe('E2E-09: Browser storage and recovery', () => {
     // 3. Inject a corrupt / malformed record directly into IndexedDB
     await page.evaluate(async () => {
       return new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open('bicycle_calibration_db', 1);
+        const req = indexedDB.open('bicycle_calibration_db');
         req.onsuccess = () => {
           const db = req.result;
           const tx = db.transaction('sessions', 'readwrite');

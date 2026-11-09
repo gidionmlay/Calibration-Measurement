@@ -1,5 +1,5 @@
 import React from 'react';
-import { DownloadIcon, PrinterIcon } from 'lucide-react';
+import { DownloadIcon, PrinterIcon, ShieldCheckIcon } from 'lucide-react';
 import type { SessionData } from '../../types/session';
 import type { Derived } from '../../utils/sessionRules';
 import { DISTANCE_DISPLAY_DECIMALS, ENGINE_VERSION, WC_DISPLAY_DECIMALS, fmt, fmtSigned } from '../../utils/calibration';
@@ -15,11 +15,13 @@ import {
   generateReportText,
 } from '../../utils/reportExport';
 import { triggerFileDownload } from '../../utils/auditExport';
+import { getCertificateInfo, type MeasurerAttribution } from '../../utils/certificate';
 
 export interface ReportSnapshot {
   session: SessionData;
   derived: Derived;
   at: string;
+  measurer?: MeasurerAttribution;
 }
 
 function Section({ title, children }: {title: string;children: React.ReactNode;}) {
@@ -47,13 +49,13 @@ function Pairs({ rows }: {rows: [string, string][];}) {
 export function ReportPreview({ snapshot, onClose }: {snapshot: ReportSnapshot | null;onClose: () => void;}) {
   const downloadText = () => {
     if (!snapshot) return;
-    const content = generateReportText(snapshot.session, snapshot.derived, snapshot.at);
+    const content = generateReportText(snapshot.session, snapshot.derived, snapshot.at, snapshot.measurer);
     triggerFileDownload(`${snapshot.session.reference}_provisional_report.txt`, content, 'text/plain');
   };
 
   const downloadJson = () => {
     if (!snapshot) return;
-    const content = exportReportToJSON(snapshot.session, snapshot.derived, snapshot.at);
+    const content = exportReportToJSON(snapshot.session, snapshot.derived, snapshot.at, snapshot.measurer);
     triggerFileDownload(`${snapshot.session.reference}_provisional_report.json`, content, 'application/json');
   };
 
@@ -86,9 +88,10 @@ export function ReportPreview({ snapshot, onClose }: {snapshot: ReportSnapshot |
 
 }
 
-function ReportBody({ session: s, derived: d, at }: ReportSnapshot) {
+function ReportBody({ session: s, derived: d, at, measurer }: ReportSnapshot) {
   const dc = d.distance.count && d.distance.count.ok ? d.distance.count : null;
   const notable = s.audit.filter((e) => ['override', 'acknowledgement', 'conflict', 'invalidation', 'finalization'].includes(e.kind));
+  const cert = getCertificateInfo(s, d, measurer);
 
   return (
     <article className="mx-auto max-w-[760px] space-y-5 border border-line bg-panel p-6 text-ink md:p-8">
@@ -128,18 +131,42 @@ function ReportBody({ session: s, derived: d, at }: ReportSnapshot) {
 
       <header>
         <p className="text-xs text-sub">Road course measurement report</p>
-        <h2 className="mt-1 font-mono text-xl font-semibold">{s.reference}</h2>
-        <div className={`mt-3 p-3 text-sm ${s.finalized ? 'border border-ink' : 'border-2 border-dashed border-ink'}`}>
-          {s.finalized ?
-          <p>
-              <span className="font-semibold">Finalized record.</span> Finalized {formatDateTime(s.finalized.at)} by {s.finalized.by}.
-            </p> :
-
-          <p>
-              <span className="font-semibold">Preview only — not finalized.</span> This document is not a final measurement report. Status: {d.state}.
-            </p>
-          }
-          <p className="mt-1 text-xs text-sub">Snapshot taken {formatDateTime(at)}</p>
+        <h2 className="mt-1 font-mono text-xl font-semibold">
+          {s.reference}
+          {s.courseName ? <span className="font-sans font-normal text-sub text-base ml-2">· {s.courseName}</span> : null}
+        </h2>
+        <div className={`mt-3 p-3.5 text-sm rounded ${s.finalized ? 'border border-emerald-300 bg-emerald-50/60 print:border-black print:bg-white' : 'border-2 border-dashed border-ink'}`}>
+          {s.finalized ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 font-semibold text-emerald-950 print:text-black">
+                <ShieldCheckIcon className="h-4 w-4 text-emerald-600 print:hidden shrink-0" />
+                <span>Finalized & Sealed Record</span>
+              </div>
+              <p className="text-xs text-emerald-900 print:text-black">
+                Finalized {formatDateTime(s.finalized.at)} by <strong>{cert.measurer.name}</strong>
+                {cert.measurer.organization ? ` · ${cert.measurer.organization}` : ''}
+              </p>
+              {cert.measurer.email && (
+                <p className="text-[11px] text-emerald-800 print:text-black">
+                  Accredited Measurer: {cert.measurer.email}
+                </p>
+              )}
+              <div className="mt-2 rounded bg-white/90 p-2 font-mono text-[11px] border border-emerald-200 text-emerald-950 break-all print:border-black print:text-black">
+                <span className="font-semibold text-sub block sm:inline sm:mr-2">SHA-256 Stamp:</span>
+                {cert.hash}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <p className="font-semibold">Preview only — not finalized.</p>
+              <p className="text-xs text-sub">This document is not a final measurement report. Status: {d.state}.</p>
+              <div className="mt-2 rounded bg-amber-50/60 p-2 font-mono text-[11px] border border-amber-200 text-amber-950 break-all print:border-black print:text-black">
+                <span className="font-semibold text-amber-800 block sm:inline sm:mr-2">Provisional Fingerprint:</span>
+                {cert.hash}
+              </div>
+            </div>
+          )}
+          <p className="mt-2 text-xs text-sub">Snapshot taken {formatDateTime(at)}</p>
         </div>
       </header>
 
@@ -155,17 +182,20 @@ function ReportBody({ session: s, derived: d, at }: ReportSnapshot) {
         </Section>
       }
 
-      <Section title="Session">
+      <Section title="Field Measurer & Session">
         <Pairs
           rows={[
-          ['Operator', s.operator],
-          ['Created', formatDateTime(s.createdAt)],
-          ['Last updated', formatDateTime(s.updatedAt)],
-          ['Calibration course length', d.length.ok ? `${fmt(d.length.value)} m` : '—'],
-          ['Counter rollover', optionLabel(rolloverOptions, s.rolloverMode)],
-          ['Ride-consistency rule', optionLabel(consistencyOptions, s.consistencyRule)]]
-          } />
-        
+            ['Field measurer', cert.measurer.name],
+            ['Affiliation / Organization', cert.measurer.organization || 'Independent Accredited Measurer'],
+            ...(cert.measurer.email ? [['Measurer email', cert.measurer.email] as [string, string]] : []),
+            ['Created', formatDateTime(s.createdAt)],
+            ['Last updated', formatDateTime(s.updatedAt)],
+            ...(s.courseName ? [['Calibration base name', s.courseName] as [string, string]] : []),
+            ['Calibration course length', d.length.ok ? `${fmt(d.length.value)} m` : '—'],
+            ['Counter rollover', optionLabel(rolloverOptions, s.rolloverMode)],
+            ['Ride-consistency rule', optionLabel(consistencyOptions, s.consistencyRule)],
+          ]}
+        />
       </Section>
 
       <Section title="Pre-calibration">
@@ -239,14 +269,16 @@ function ReportBody({ session: s, derived: d, at }: ReportSnapshot) {
         }
       </Section>
 
-      <Section title="Versions">
+      <Section title="Integrity & System Verification">
         <Pairs
           rows={[
-          ['Rule set', optionLabel(ruleSetOptions, s.ruleSet)],
-          ['Calculation engine', ENGINE_VERSION],
-          ['Record status', s.finalized ? 'Finalized' : `Not finalized (${d.state})`]]
-          } />
-        
+            ['Certificate SHA-256 seal', cert.hash],
+            ['Audit ledger records', `${s.audit.length} chained entries`],
+            ['Rule set', optionLabel(ruleSetOptions, s.ruleSet)],
+            ['Calculation engine', ENGINE_VERSION],
+            ['Record status', s.finalized ? 'Finalized (Immutable)' : `Not finalized (${d.state})`],
+          ]}
+        />
       </Section>
 
       {/* Prominent Provisional Notice Footer */}

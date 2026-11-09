@@ -1,5 +1,5 @@
-export type ViewId = 'list' | 'setup' | 'pre' | 'distance' | 'post' | 'review';
-export type StepId = Exclude<ViewId, 'list'>;
+export type ViewId = 'list' | 'setup' | 'pre' | 'distance' | 'post' | 'review' | 'admin';
+export type StepId = Exclude<ViewId, 'list' | 'admin'>;
 export type Connectivity = 'online' | 'offline' | 'syncIssue' | 'syncConflict';
 export type SessionListScenario = 'examples' | 'empty';
 export type SessionState = 'Draft' | 'In progress' | 'Needs review' | 'Ready for final review' | 'Finalized';
@@ -26,17 +26,19 @@ export interface ReviewRecord {
 }
 
 export type AuditKind =
-'created' |
-'edit' |
-'override' |
-'recalculation' |
-'review' |
-'invalidation' |
-'acknowledgement' |
-'sync' |
-'conflict' |
-'finalization' |
-'version';
+  | 'created'
+  | 'edit'
+  | 'override'
+  | 'recalculation'
+  | 'review'
+  | 'invalidation'
+  | 'acknowledgement'
+  | 'sync'
+  | 'conflict'
+  | 'finalization'
+  | 'version'
+  | 'revision'
+  | 'superseded';
 
 export interface AuditEntry {
   id: string;
@@ -68,6 +70,23 @@ export interface LoggedResults {
   postWC: string;
 }
 
+export interface ServerCalculations {
+  preWC?: string;
+  postWC?: string;
+  finalWC?: string;
+  drift?: string;
+  distanceKm?: string;
+  isProvisional?: boolean;
+}
+
+export interface FinalizedRecord {
+  at: string;
+  by: string;
+  email?: string;
+  organization?: string;
+  certificateHash?: string;
+}
+
 export interface SessionData {
   reference: string;
   operator: string;
@@ -75,6 +94,7 @@ export interface SessionData {
   createdAt: string;
   updatedAt: string;
   courseLength: string;
+  courseName?: string;
   rolloverMode: RolloverMode;
   rolloverMax: string;
   consistencyRule: ConsistencyRule;
@@ -87,7 +107,7 @@ export interface SessionData {
   reviews: Partial<Record<ReviewKey, ReviewRecord>>;
   acknowledgements: Record<string, ReviewRecord>;
   setupSaved: boolean;
-  finalized: {at: string;by: string;} | null;
+  finalized: FinalizedRecord | null;
   lastStep: StepId;
   save: SaveStatus;
   sync: SyncStatus;
@@ -95,6 +115,12 @@ export interface SessionData {
   conflict: ConflictRecord | null;
   audit: AuditEntry[];
   logged: LoggedResults;
+  backendId?: string;
+  backendVersion?: number;
+  serverCalculations?: ServerCalculations;
+  supersedesRef?: string;
+  supersededByRef?: string;
+  revisionReason?: string;
 }
 
 export type SeedStage = 'postPartial' | 'needsReview' | 'ready' | 'finalized';

@@ -1,12 +1,13 @@
-import { test, expect, clearIndexedDB, createNewSession, fillFourPreCalRides, fillFourPostCalRides, navigateToStep } from './fixtures';
+import { test, expect, clearIndexedDB, seedAuthTokens, createNewSession, fillFourPreCalRides, fillFourPostCalRides, navigateToStep } from './fixtures';
 
 test.describe('E2E-11: Session Export, Backup, Audit Export, and Provisional Reporting', () => {
   test.beforeEach(async ({ page }) => {
     await clearIndexedDB(page);
+    await seedAuthTokens(page, 'measurer');
   });
 
   test('exports and imports session backups with duplicate conflict copy resolution', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?scenario=examples');
 
     // 1. Verify Export button is visible on seed sessions
     const seedExportBtn = page.getByTestId('export-session-BC-2026-003');
@@ -127,7 +128,7 @@ test.describe('E2E-11: Session Export, Backup, Audit Export, and Provisional Rep
   });
 
   test('blocks overwrite of finalized sessions and enforces import as copy', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?scenario=examples');
 
     // BC-2026-001 is a finalized seed session
     const seed1ExportBtn = page.getByTestId('export-session-BC-2026-001');

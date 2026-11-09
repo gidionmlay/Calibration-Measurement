@@ -1,6 +1,6 @@
-# Authoritative Calculation Backend (Milestone 10.1)
+# Authoritative Calculation Backend & PostgreSQL Persistence (Milestones 10.1–10.2)
 
-Authoritative, deterministic Python calculation service for the **Bicycle Calibration Calculation / Road Course Measurement Platform**.
+Authoritative, deterministic Python calculation service, PostgreSQL persistence, and append-only cryptographic audit ledger for the **Bicycle Calibration Calculation / Road Course Measurement Platform**.
 
 > [!IMPORTANT]
 > **PROVISIONAL STATUS:** All calculation outputs are strictly **PROVISIONAL** and **NOT FOR OFFICIAL CERTIFICATION**. Governing road measurement policies MP-01 through MP-09 remain unratified by governing athletic authorities. Official session finalization is disabled.
@@ -9,52 +9,72 @@ Authoritative, deterministic Python calculation service for the **Bicycle Calibr
 
 ## 1. Overview & Architecture
 
-This service acts as the server-side authoritative calculation boundary defined in [`docs/PHASE_10_PRODUCTION_ARCHITECTURE.md`](file:///media/sda3/Projects/Calibration/docs/PHASE_10_PRODUCTION_ARCHITECTURE.md):
+This service acts as the server-side authoritative calculation boundary and persistence engine defined in [`docs/PHASE_10_PRODUCTION_ARCHITECTURE.md`](file:///media/sda3/Projects/Calibration/docs/PHASE_10_PRODUCTION_ARCHITECTURE.md):
 - **Pure Arithmetic Service (`app/services/calculation_engine.py`):** Uses Python `Decimal` to eliminate floating-point rounding noise. Operates completely independent of HTTP transports, database connections, and browser state.
-- **Strict Validation Schemas (`app/schemas/calculations.py`):** Enforces discrete non-negative integer counts, strictly positive course lengths, division-by-zero protection, and mandatory override reasons using Pydantic v2.
-- **RESTful Endpoints (`app/api/routes/calculations.py`):** Exposes versioned endpoints (`/api/v1/calculations/calibration`, `/api/v1/calculations/course-distance`, `/api/v1/calculations/compare`) returning structured JSON with RFC 7807 / RFC 9457 Problem Details error responses.
+- **Strict Validation Schemas (`app/schemas/calculations.py`, `app/schemas/session.py`, `app/schemas/audit.py`):** Enforces discrete non-negative integer counts, strictly positive course lengths, division-by-zero protection, and mandatory override reasons using Pydantic v2.
+- **Relational Persistence Models (`app/models/`):** Normalized SQLAlchemy 2.0 models for sessions, rides, overrides, reviews, and audit events with PostgreSQL check constraints and exact Decimal (`NUMERIC`) columns.
+- **Append-Only Cryptographic Audit Ledger (`app/audit/`):** Transactionally coupled event ledger with deterministic RFC 8785 canonical JSON serialization, SHA-256 hash chaining, application immutability listeners blocking UPDATE/DELETE, and verification engine (`verify_audit_ledger`).
+- **Optimistic Concurrency Control:** Version-based concurrency check preventing silent lost updates with RFC 7807 Problem Details HTTP 409 responses.
+- **RESTful Endpoints:** Versioned endpoints for calculations (`/api/v1/calculations/*`) and session persistence / audit verification (`/api/v1/sessions/*`).
 
 ---
 
 ## 2. Environment Prerequisites
 
 - **Python Version:** Supported on Python 3.11, 3.12, and 3.13 (verified on Python 3.13.5).
-- **Virtual Environment:** Recommended under `backend/.venv`.
+- **PostgreSQL Database:** PostgreSQL 16+ via Docker Compose (bound to loopback `127.0.0.1:5433`).
+- **Container Engine:** Podman or Docker.
 
 ---
 
-## 3. Installation & Setup
+## 3. Local Development Setup
 
+### A. Environment Configuration
+Copy `.env.example` to `.env` if custom database parameters are needed:
 ```bash
-# Navigate to the backend directory
+cp .env.example .env
+```
+
+### B. Start PostgreSQL via Docker Compose
+From repository root:
+```bash
+docker compose up -d
+```
+This launches a PostgreSQL 16 container bound strictly to loopback (`127.0.0.1:5433`).
+
+### C. Install Python Dependencies
+```bash
 cd backend
-
-# Create virtual environment
 python3 -m venv .venv
-
-# Activate virtual environment
 source .venv/bin/activate
-
-# Install dependencies
 pip install -e ".[dev]"
+```
+
+### D. Run Database Migrations
+Apply the initial schema migration using Alembic:
+```bash
+PYTHONPATH=backend backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
 ```
 
 ---
 
 ## 4. Running the Tests
 
-The test suite runs with `pytest` and verifies 46 unit, API, and mathematical reference tests:
+The backend test suite executes 79 tests covering pure math, reference vectors, persistence models, database constraints, transactions, optimistic concurrency, and audit ledger integrity:
 
 ```bash
-# From within the backend directory:
-pytest -v
-
-# Or from the project root:
+# Run all backend tests
 PYTHONPATH=backend backend/.venv/bin/pytest backend/tests -v
 ```
 
-### Reference Vector Coverage (Phase 8 Parity)
-The test suite includes `tests/test_reference_vectors.py`, which executes all **33 Golden Reference Vectors** established in Phase 8 (`src/utils/calculationValidation.test.ts`), verifying arithmetic parity between the TypeScript presentation engine and the Python authoritative engine.
+### Test Coverage Highlights:
+- **Reference Vectors (`test_reference_vectors.py`):** 33 golden reference vectors from Phase 8.
+- **Database Models & Constraints (`test_persistence_models.py`):** Round-trip Decimal precision, check constraints, ride linkage, and review invalidation.
+- **Transactional Rollback (`test_transactions.py`):** Atomicity of session update and audit logging; complete rollback on failure.
+- **Audit Cryptographic Integrity (`test_audit_integrity.py`):** SHA-256 hash chaining, canonical JSON determinism, and tamper detection.
+- **Optimistic Concurrency (`test_concurrency.py`):** Conflict resolution with HTTP 409 Problem Details on stale versions.
+- **API Endpoints (`test_session_api.py`):** Session lifecycle, recalculation, and audit verification.
+- **Migration Lifecycle (`test_migrations.py`):** Clean downgrade to base and upgrade to head on live PostgreSQL.
 
 ---
 

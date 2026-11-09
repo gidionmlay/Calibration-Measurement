@@ -1,9 +1,11 @@
 import type { SessionData } from '../types/session';
+import type { QueuedSyncOp } from '../services/sync/types';
 
-export const STORAGE_SCHEMA_VERSION = 1;
+export const STORAGE_SCHEMA_VERSION = 2;
 export const DB_NAME = 'bicycle_calibration_db';
 export const SESSIONS_STORE = 'sessions';
 export const META_STORE = 'meta';
+export const SYNC_STORE = 'sync_operations';
 
 export interface StorageMetadata {
   schemaVersion: number;
@@ -46,6 +48,11 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(META_STORE)) {
         db.createObjectStore(META_STORE, { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains(SYNC_STORE)) {
+        const syncStore = db.createObjectStore(SYNC_STORE, { keyPath: 'id' });
+        syncStore.createIndex('sessionRef', 'sessionRef', { unique: false });
+        syncStore.createIndex('status', 'status', { unique: false });
       }
     };
 
@@ -183,9 +190,16 @@ export async function clearStorage(): Promise<void> {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     try {
-      const tx = db.transaction([SESSIONS_STORE, META_STORE], 'readwrite');
+      const stores = [SESSIONS_STORE, META_STORE];
+      if (db.objectStoreNames.contains(SYNC_STORE)) {
+        stores.push(SYNC_STORE);
+      }
+      const tx = db.transaction(stores, 'readwrite');
       tx.objectStore(SESSIONS_STORE).clear();
       tx.objectStore(META_STORE).clear();
+      if (db.objectStoreNames.contains(SYNC_STORE)) {
+        tx.objectStore(SYNC_STORE).clear();
+      }
       tx.oncomplete = () => {
         db.close();
         resolve();
@@ -193,6 +207,106 @@ export async function clearStorage(): Promise<void> {
       tx.onerror = () => {
         db.close();
         reject(tx.error);
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
+  });
+}
+
+/**
+ * Saves or updates a queued sync operation in IndexedDB.
+ */
+export async function saveSyncOpToStorage(op: QueuedSyncOp): Promise<void> {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction([SYNC_STORE], 'readwrite');
+      const store = tx.objectStore(SYNC_STORE);
+      store.put(op);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error || new Error('Failed to save sync operation'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
+  });
+}
+
+/**
+ * Loads all queued sync operations from IndexedDB.
+ */
+export async function loadSyncOpsFromStorage(): Promise<QueuedSyncOp[]> {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction([SYNC_STORE], 'readonly');
+      const store = tx.objectStore(SYNC_STORE);
+      const request = store.getAll();
+      tx.oncomplete = () => {
+        db.close();
+        resolve(request.result || []);
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error || new Error('Failed to load sync operations'));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
+  });
+}
+
+/**
+ * Removes a specific sync operation by ID from IndexedDB.
+ */
+export async function removeSyncOpFromStorage(id: string): Promise<void> {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction([SYNC_STORE], 'readwrite');
+      const store = tx.objectStore(SYNC_STORE);
+      store.delete(id);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error || new Error(`Failed to remove sync operation ${id}`));
+      };
+    } catch (e) {
+      db.close();
+      reject(e);
+    }
+  });
+}
+
+/**
+ * Clears all operations in the sync store.
+ */
+export async function clearSyncOpsFromStorage(): Promise<void> {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction([SYNC_STORE], 'readwrite');
+      const store = tx.objectStore(SYNC_STORE);
+      store.clear();
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error || new Error('Failed to clear sync operations'));
       };
     } catch (e) {
       db.close();

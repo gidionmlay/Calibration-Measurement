@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
-import { DownloadIcon, PlusIcon, SearchIcon, UploadIcon } from 'lucide-react';
+import { CompassIcon, DownloadIcon, PlusIcon, SearchIcon, UploadIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 import { useSession } from '../contexts/SessionContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { deriveSession } from '../utils/sessionRules';
@@ -57,9 +58,11 @@ export function SessionList() {
     exportSession,
     importSessionPayload,
   } = useSession();
+  const { user } = useAuth();
   const isWide = useMediaQuery('(min-width: 768px)');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [conflictPayload, setConflictPayload] = useState<SessionExportPayload | null>(null);
+  const [showWorkflowGuide, setShowWorkflowGuide] = useState(false);
   const [query, setQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
   const [syncFilter, setSyncFilter] = useState<SyncFilter>('all');
@@ -150,7 +153,7 @@ export function SessionList() {
 
   const filtered = rows.filter(({ session: s, state }) => {
     const day = s.updatedAt.slice(0, 10);
-    if (query && !`${s.reference} ${s.operator}`.toLowerCase().includes(query.trim().toLowerCase())) return false;
+    if (query && !`${s.reference} ${s.operator} ${s.courseName || ''}`.toLowerCase().includes(query.trim().toLowerCase())) return false;
     if (stateFilter !== 'all' && state !== stateFilter) return false;
     if (syncFilter !== 'all' && s.sync !== syncFilter) return false;
     if (operator !== 'all' && s.operator !== operator) return false;
@@ -206,38 +209,124 @@ export function SessionList() {
           >
             Import backup
           </Button>
-          {sessions.length > 0 &&
-            <Button
-              variant="primary"
-              icon={<PlusIcon />}
-              onClick={createSession}
-              className="self-start md:self-auto"
-              data-testid="new-session-btn"
-            >
-              New session
-            </Button>
-          }
+          <Button
+            variant="primary"
+            icon={<PlusIcon className="h-4 w-4" />}
+            onClick={createSession}
+            className="self-start md:self-auto"
+            data-testid="new-session-btn"
+          >
+            New session
+          </Button>
         </div>
       </div>
 
-      {connectivity === 'offline' &&
-      <div className="mb-6">
+      {connectivity === 'offline' && (
+        <div className="mb-6">
           <Notice tone="info" title="Working offline">
             Sessions stored on this device can be opened and new drafts created. Changes are marked “Sync pending” and are sent when the connection returns.
           </Notice>
         </div>
-      }
+      )}
 
-      {sessions.length === 0 ?
-      <div className="rounded border-2 border-dashed border-line bg-panel px-6 py-16 text-center">
-          <h2 className="text-lg font-semibold text-ink">No calibration sessions yet</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-sub">
-            A session holds the setup, four pre-calibration rides, the course-distance readings, four post-calibration rides and the final report. It is created on this device and works without a connection.
+      {sessions.length === 0 ? (
+        <div className="rounded-2xl border border-line bg-panel p-6 sm:p-10 text-center shadow-xs">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-canvas border border-line text-ink mb-4 shadow-xs">
+            <CompassIcon className="h-7 w-7 text-emerald-600" />
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
+            Welcome, {user?.display_name || 'Field Measurer'}.
+          </h2>
+
+          <p className="mt-1 text-sm font-medium text-emerald-800">
+            {user?.organization ? `Accredited for ${user.organization}. ` : ''}Your field calibration workspace is ready.
           </p>
-          <Button variant="primary" icon={<PlusIcon />} onClick={createSession} className="mt-6">
-            Create your first session
-          </Button>
-        </div> :
+
+          <p className="mx-auto mt-3 max-w-lg text-sm text-sub leading-relaxed">
+            Would you like to start your bicycle calibration session now, or explore your workspace first?
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Button
+              variant="primary"
+              icon={<PlusIcon className="h-4 w-4" />}
+              onClick={createSession}
+              aria-label="Start calibration now — Create your first session"
+              data-testid="start-calibration-now-btn"
+            >
+              Start Calibration Now
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setShowWorkflowGuide(!showWorkflowGuide)}
+              data-testid="explore-workspace-btn"
+            >
+              {showWorkflowGuide ? 'Hide Workflow Guide' : 'Explore Workspace First'}
+            </Button>
+          </div>
+
+          {showWorkflowGuide && (
+            <div className="mt-8 border-t border-line pt-6 text-left max-w-2xl mx-auto">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-sub mb-4 text-center sm:text-left">
+                Official 4-Step Road Calibration Workflow
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-line bg-canvas/60 p-4">
+                  <div className="flex items-center gap-2 font-semibold text-xs text-ink">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white">1</span>
+                    <span>Reference Course Setup</span>
+                  </div>
+                  <p className="mt-1 text-xs text-sub leading-relaxed">
+                    Set your measured steel-tape calibration course length (e.g. 1000m) and ambient temperatures.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-line bg-canvas/60 p-4">
+                  <div className="flex items-center gap-2 font-semibold text-xs text-ink">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white">2</span>
+                    <span>Pre-Calibration Rides</span>
+                  </div>
+                  <p className="mt-1 text-xs text-sub leading-relaxed">
+                    Record 4 consecutive Jones counter rides to establish your working constant with precision validation.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-line bg-canvas/60 p-4">
+                  <div className="flex items-center gap-2 font-semibold text-xs text-ink">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white">3</span>
+                    <span>Course Measurement</span>
+                  </div>
+                  <p className="mt-1 text-xs text-sub leading-relaxed">
+                    Ride your course splits and turn points with raw counter interval tracking and immediate verification.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-line bg-canvas/60 p-4">
+                  <div className="flex items-center gap-2 font-semibold text-xs text-ink">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white">4</span>
+                    <span>Post-Cal & Certified Report</span>
+                  </div>
+                  <p className="mt-1 text-xs text-sub leading-relaxed">
+                    Confirm tire temperature drift across 4 post-rides and generate an official SHA-256 sealed certificate.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <Button
+                  variant="primary"
+                  icon={<PlusIcon className="h-4 w-4" />}
+                  onClick={createSession}
+                  data-testid="workflow-guide-start-btn"
+                >
+                  Start Calibration Now
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
 
       <>
           <div role="group" aria-label="Filter by session state" className="mb-4 flex flex-wrap gap-2">
@@ -265,7 +354,7 @@ export function SessionList() {
               </label>
               <div className="flex h-10 items-center gap-2 rounded border border-line px-3 focus-within:outline focus-within:outline-2 focus-within:outline-ink">
                 <SearchIcon className="h-4 w-4 text-sub" aria-hidden="true" />
-                <input id="session-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Reference or operator" className="h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-faint" />
+                <input id="session-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Reference, base name, or operator" className="h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-faint" />
               </div>
             </div>
             <SelectField compact id="filter-state" label="Session state" value={stateFilter} options={stateOptions} onChange={(v) => setStateFilter(v as StateFilter)} />
@@ -304,7 +393,7 @@ export function SessionList() {
         isWide ?
         <div className="overflow-hidden rounded border border-line bg-panel">
               <table className="w-full border-collapse text-sm">
-                <caption className="border-b border-line bg-canvas px-4 py-2 text-left text-xs text-sub">Illustrative prototype data</caption>
+                <caption className="border-b border-line bg-canvas px-4 py-2 text-left text-xs text-sub">Active measurement sessions</caption>
                 <thead>
                   <tr className="border-b border-line text-left text-xs font-semibold text-sub">
                     <th scope="col" className="px-4 py-2.5">Session reference</th>
@@ -320,7 +409,14 @@ export function SessionList() {
                 const action = actionFor(state);
                 return (
                   <tr key={s.reference} className="border-b border-hair align-top last:border-b-0">
-                        <th scope="row" className="px-4 py-3 text-left font-mono font-semibold text-ink">{s.reference}</th>
+                        <th scope="row" aria-label={s.reference} className="px-4 py-3 text-left">
+                          <span className="font-mono font-semibold text-ink">{s.reference}</span>
+                          {s.courseName && (
+                            <span className="block font-sans text-xs font-normal text-sub truncate max-w-[220px]" title={s.courseName}>
+                              {s.courseName}
+                            </span>
+                          )}
+                        </th>
                         <td className="px-4 py-3 text-ink">{s.operator}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-ink">{formatDateTime(s.updatedAt)}</td>
                         <td className="px-4 py-3">
@@ -350,7 +446,7 @@ export function SessionList() {
               </table>
             </div> :
 
-        <ul className="space-y-3" aria-label="Sessions — illustrative prototype data">
+        <ul className="space-y-3" aria-label="Sessions — active measurement sessions">
               {filtered.map(({ session: s, state }) => {
             const action = actionFor(state);
             return (
@@ -358,6 +454,11 @@ export function SessionList() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-mono font-semibold text-ink">{s.reference}</p>
+                        {s.courseName && (
+                          <p className="font-sans text-xs font-normal text-sub truncate max-w-[240px]" title={s.courseName}>
+                            {s.courseName}
+                          </p>
+                        )}
                         <p className="mt-0.5 text-xs text-sub">
                           {s.operator} · {formatDateTime(s.updatedAt)}
                         </p>
@@ -383,9 +484,9 @@ export function SessionList() {
 
           })}
             </ul>
-        }
+          }
         </>
-      }
+      )}
 
       {conflictPayload && (() => {
         const existing = sessions.find(
