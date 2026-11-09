@@ -17,9 +17,15 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import get_current_user
 from app.auth.rbac import SystemRoles, RBACService
 from app.core.database import get_db
+from app.models.rbac import UserRole, Role
 from app.models.session import MeasurementSession
 from app.models.user import User
-from app.schemas.admin import AdminOverviewResponse, MonthlyActivityItem, RecentSessionItem
+from app.schemas.admin import (
+    AdminOverviewResponse,
+    MonthlyActivityItem,
+    RecentSessionItem,
+    FieldMeasurerItem,
+)
 from app.schemas.calculations import ProblemDetail
 
 router = APIRouter(prefix="/admin", tags=["Admin Overview"])
@@ -146,6 +152,44 @@ def get_admin_overview(
             )
         )
 
+    # Fetch all registered field measurers and operators
+    all_users = db.query(User).order_by(User.created_at.desc()).all()
+    user_roles_map = defaultdict(list)
+    user_roles_db = (
+        db.query(UserRole.user_id, Role.name)
+        .join(Role, UserRole.role_id == Role.id)
+        .filter(UserRole.revoked_at.is_(None))
+        .all()
+    )
+    for u_id, r_name in user_roles_db:
+        user_roles_map[u_id].append(r_name)
+
+    session_counts_db = (
+        db.query(MeasurementSession.measurer_id, func.count(MeasurementSession.id))
+        .filter(MeasurementSession.measurer_id.isnot(None))
+        .group_by(MeasurementSession.measurer_id)
+        .all()
+    )
+    session_counts_map = {str(m_id): count for m_id, count in session_counts_db}
+
+    measurers_list: List[FieldMeasurerItem] = []
+    for u in all_users:
+        u_roles = user_roles_map.get(u.id) or ["measurer"]
+        name = u.display_name or (u.email.split("@")[0] if u.email else "Field Measurer")
+        s_count = session_counts_map.get(str(u.id), 0) or session_counts_map.get(u.display_name or "", 0)
+        measurers_list.append(
+            FieldMeasurerItem(
+                id=u.id,
+                display_name=name,
+                email=u.email,
+                organization=u.organization or "Independent Measurer",
+                status=u.status,
+                roles=u_roles,
+                session_count=s_count,
+                created_at=u.created_at,
+            )
+        )
+
     return AdminOverviewResponse(
         total_users=total_users,
         total_sessions=total_sessions,
@@ -153,5 +197,6 @@ def get_admin_overview(
         total_draft_sessions=total_drafts,
         monthly_activity=monthly_activity,
         recent_activity=recent_activity,
+        measurers=measurers_list,
     )
 

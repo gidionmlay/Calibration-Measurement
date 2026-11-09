@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type {
   CalibrationSet,
@@ -103,13 +103,25 @@ interface SessionProviderProps {
 
 export function SessionProvider({ connectivity, listScenario, children }: SessionProviderProps) {
   const { user } = useAuth();
+  const isAdminUser = Boolean(user?.roles?.some((r) => r === 'admin' || r === 'supervisor'));
   const [sessions, setSessions] = useState<SessionData[]>(() => buildSeedSessions(connectivity, listScenario));
   const [activeRef, setActiveRef] = useState<string | null>(null);
-  const [view, setView] = useState<ViewId>('list');
+  const [view, setView] = useState<ViewId>(() => (isAdminUser ? 'admin' : 'list'));
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [restoreInfo, setRestoreInfo] = useState<RestoreInfo | null>(null);
   const [syncDialogRef, setSyncDialogRef] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
+  const prevRoleRef = useRef<string | undefined>(user?.roles?.[0]);
+
+  useEffect(() => {
+    const currentRole = user?.roles?.[0];
+    if (currentRole !== prevRoleRef.current) {
+      prevRoleRef.current = currentRole;
+      if (user?.roles?.some((r) => r === 'admin' || r === 'supervisor')) {
+        setView('admin');
+      }
+    }
+  }, [user]);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>({
     health: 'ready',
     persistedCount: 0,
@@ -298,6 +310,10 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
   );
 
   const createSession = useCallback(() => {
+    if (user?.roles?.includes('admin') && !user?.roles?.includes('measurer')) {
+      toast.error('Administrators cannot create measurement sessions. Only Field Measurers record calibration sessions.');
+      return;
+    }
     const nums = sessions.map((s) => Number(s.reference.split('-')[2]) || 0);
     const ref = `BC-2026-${String(Math.max(0, ...nums) + 1).padStart(3, '0')}`;
     const operatorName = user?.display_name || user?.email || prototypeOperator;

@@ -23,6 +23,17 @@ class RecentSessionItem(BaseModel):
     created_at: datetime
 
 
+class FieldMeasurerItem(BaseModel):
+    id: uuid.UUID
+    display_name: str
+    email: Optional[str] = None
+    organization: Optional[str] = None
+    status: str
+    roles: List[str] = ["measurer"]
+    session_count: int = 0
+    created_at: datetime
+
+
 class AdminOverviewResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,4 +43,5 @@ class AdminOverviewResponse(BaseModel):
     total_draft_sessions: int
     monthly_activity: List[MonthlyActivityItem]
     recent_activity: List[RecentSessionItem]
+    measurers: List[FieldMeasurerItem] = []
 

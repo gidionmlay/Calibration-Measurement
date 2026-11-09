@@ -82,6 +82,17 @@ Runs a local PostgreSQL 16 container bound strictly to loopback (`127.0.0.1:5433
 PYTHONPATH=backend backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
 ```
 
+### 3. Seed Initial Administrator Account
+```bash
+./run.sh admin:create \
+  --email "admin@calibration.local" \
+  --password "AdminSecPass2026!" \
+  --name "Lead Administrator" \
+  --role "admin" \
+  --organization "World Athletics / AIMS" \
+  --non-interactive
+```
+
 For full details, see [`backend/README.md`](file:///media/sda3/Projects/Calibration/backend/README.md).
 
 ## Documentation
@@ -93,10 +104,3 @@ For full details, see [`backend/README.md`](file:///media/sda3/Projects/Calibrat
 - [Phase 10 Threat Model](docs/PHASE_10_THREAT_MODEL.md)
 - [User Roles & Autonomous Workflow](docs/USER_ROLES_AND_WORKFLOW.md)
 - [Feature Implementation Matrix](docs/FEATURE_IMPLEMENTATION_MATRIX.md)
-
-  --email "admin@calibration.local" \
-  --password "AdminSecPass2026!" \
-  --name "Lead Administrator" \
-  --role "admin" \
-  --organization "World Athletics / AIMS" \
-  --non-interactive

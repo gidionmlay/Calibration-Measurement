@@ -45,9 +45,7 @@ export function Sidebar({ open, onClose }: {open: boolean;onClose: () => void;})
   const { hasRole } = useAuth();
   const isAdmin = hasRole('admin') || hasRole('supervisor');
 
-  const items: NavItem[] = [
-  { key: 'sessions', label: 'Sessions', Icon: ListIcon, active: view === 'list', onSelect: () => goTo('list') },
-  { key: 'new', label: 'New session', Icon: PlusIcon, active: false, onSelect: createSession }];
+  const items: NavItem[] = [];
 
   if (isAdmin) {
     items.push({
@@ -56,6 +54,28 @@ export function Sidebar({ open, onClose }: {open: boolean;onClose: () => void;})
       Icon: BarChart3Icon,
       active: view === 'admin',
       onSelect: () => goTo('admin'),
+    });
+    items.push({
+      key: 'sessions',
+      label: 'Sessions',
+      Icon: ListIcon,
+      active: view === 'list',
+      onSelect: () => goTo('list'),
+    });
+  } else {
+    items.push({
+      key: 'sessions',
+      label: 'Sessions',
+      Icon: ListIcon,
+      active: view === 'list',
+      onSelect: () => goTo('list'),
+    });
+    items.push({
+      key: 'new',
+      label: 'New session',
+      Icon: PlusIcon,
+      active: false,
+      onSelect: createSession,
     });
   }
 

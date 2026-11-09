@@ -137,6 +137,17 @@ export interface RecentSessionItem {
   created_at: string;
 }
 
+export interface FieldMeasurerItem {
+  id: string;
+  display_name: string;
+  email?: string | null;
+  organization?: string | null;
+  status: string;
+  roles: string[];
+  session_count: number;
+  created_at: string;
+}
+
 export interface AdminOverviewMetrics {
   total_users: number;
   total_sessions: number;
@@ -144,6 +155,7 @@ export interface AdminOverviewMetrics {
   total_draft_sessions: number;
   monthly_activity: MonthlyActivityItem[];
   recent_activity: RecentSessionItem[];
+  measurers?: FieldMeasurerItem[];
 }
 
 // ============================================================================

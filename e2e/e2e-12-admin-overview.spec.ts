@@ -34,20 +34,34 @@ test.describe('E2E-12: Role separation & Admin Overview Dashboard', () => {
     await expect(page.getByText('Finalized Reports', { exact: true })).toBeVisible();
     await expect(page.getByText('Active Drafts', { exact: true })).toBeVisible();
 
-    // 6. Verify Recent Activity table is rendered
+    // 6. Verify Recent Activity table is rendered and test KPI card navigation
     await expect(page.getByRole('heading', { name: /Recent Measurement Activity/i })).toBeVisible();
     await expect(page.getByPlaceholder(/Search reference or measurer/i)).toBeVisible();
 
-    // 7. Test search filter
+    // 7. Test interactive KPI card switching to Field Measurers Directory
+    const measurersKpi = page.getByTestId('kpi-card-measurers');
+    await expect(measurersKpi).toBeVisible();
+    await measurersKpi.click();
+    await expect(page.getByRole('heading', { name: /Field Measurers Directory/i })).toBeVisible();
+
+    // Switch back to Measurement Sessions tab
+    await page.getByTestId('admin-tab-sessions').click();
+    await expect(page.getByRole('heading', { name: /Recent Measurement Activity/i })).toBeVisible();
+
+    // 8. Test search filter
     const searchInput = page.getByPlaceholder(/Search reference or measurer/i);
     await searchInput.fill('NonexistentQuery999');
     await expect(page.getByText(/No sessions match your search criteria/i)).toBeVisible();
     await searchInput.clear();
 
-    // 8. Return to Sessions list
+    // 9. Return to Sessions list as Admin
     const sessionsNav = page.getByRole('button', { name: /^Sessions$/i }).first();
     await sessionsNav.click();
     await expect(page.getByRole('heading', { name: /Calibration sessions/i })).toBeVisible();
+
+    // 10. Verify Admin cannot create session: New session button is hidden from list and sidebar
+    await expect(page.getByTestId('new-session-btn')).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /^New session$/i })).not.toBeVisible();
   });
 });
 

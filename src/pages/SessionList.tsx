@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { CompassIcon, DownloadIcon, PlusIcon, SearchIcon, UploadIcon } from 'lucide-react';
+import { CompassIcon, DownloadIcon, PlusIcon, SearchIcon, UploadIcon, BarChart3Icon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useSession } from '../contexts/SessionContext';
@@ -57,8 +57,10 @@ export function SessionList() {
     openSyncDialog,
     exportSession,
     importSessionPayload,
+    goTo,
   } = useSession();
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
+  const isAdmin = hasRole('admin') || hasRole('supervisor');
   const isWide = useMediaQuery('(min-width: 768px)');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [conflictPayload, setConflictPayload] = useState<SessionExportPayload | null>(null);
@@ -209,15 +211,17 @@ export function SessionList() {
           >
             Import backup
           </Button>
-          <Button
-            variant="primary"
-            icon={<PlusIcon className="h-4 w-4" />}
-            onClick={createSession}
-            className="self-start md:self-auto"
-            data-testid="new-session-btn"
-          >
-            New session
-          </Button>
+          {!isAdmin && (
+            <Button
+              variant="primary"
+              icon={<PlusIcon className="h-4 w-4" />}
+              onClick={createSession}
+              className="self-start md:self-auto"
+              data-testid="new-session-btn"
+            >
+              New session
+            </Button>
+          )}
         </div>
       </div>
 
@@ -230,6 +234,36 @@ export function SessionList() {
       )}
 
       {sessions.length === 0 ? (
+        isAdmin ? (
+          <div className="rounded-2xl border border-line bg-panel p-6 sm:p-10 text-center shadow-xs">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-canvas border border-line text-ink mb-4 shadow-xs">
+              <BarChart3Icon className="h-7 w-7 text-indigo-600" />
+            </div>
+
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
+              Workspace Session Archive
+            </h2>
+
+            <p className="mt-1 text-sm font-medium text-sub">
+              Logged in as Administrator ({user?.display_name || user?.email || 'Admin'}).
+            </p>
+
+            <p className="mx-auto mt-3 max-w-lg text-sm text-sub leading-relaxed">
+              No measurement sessions are currently active in this device workspace. Use the Operational Overview to view and inspect all field measurers, sessions, and completed reports across the platform.
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <Button
+                variant="primary"
+                icon={<BarChart3Icon className="h-4 w-4" />}
+                onClick={() => goTo('admin')}
+                data-testid="admin-overview-nav-btn"
+              >
+                Go to Admin Overview
+              </Button>
+            </div>
+          </div>
+        ) : (
         <div className="rounded-2xl border border-line bg-panel p-6 sm:p-10 text-center shadow-xs">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-canvas border border-line text-ink mb-4 shadow-xs">
             <CompassIcon className="h-7 w-7 text-emerald-600" />
@@ -326,6 +360,7 @@ export function SessionList() {
             </div>
           )}
         </div>
+        )
       ) : (
 
       <>
