@@ -12,7 +12,7 @@ function statusText(id: StepId, st: StepStatus): string {
 
 export function WorkflowStepper() {
   const { view, derived, goTo } = useSession();
-  if (!derived || view === 'list') return null;
+  if (!derived || view === 'list' || view === 'admin' || view === 'users' || view === 'settings') return null;
   const currentIndex = workflowSteps.findIndex((s) => s.id === view);
   const current = workflowSteps[currentIndex];
 

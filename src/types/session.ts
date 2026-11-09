@@ -1,5 +1,5 @@
-export type ViewId = 'list' | 'setup' | 'pre' | 'distance' | 'post' | 'review' | 'admin';
-export type StepId = Exclude<ViewId, 'list' | 'admin'>;
+export type ViewId = 'list' | 'setup' | 'pre' | 'distance' | 'post' | 'review' | 'admin' | 'users' | 'settings';
+export type StepId = Exclude<ViewId, 'list' | 'admin' | 'users' | 'settings'>;
 export type Connectivity = 'online' | 'offline' | 'syncIssue' | 'syncConflict';
 export type SessionListScenario = 'examples' | 'empty';
 export type SessionState = 'Draft' | 'In progress' | 'Needs review' | 'Ready for final review' | 'Finalized';

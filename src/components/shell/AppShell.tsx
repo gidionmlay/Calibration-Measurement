@@ -14,11 +14,13 @@ import { CourseDistance } from '../../pages/CourseDistance';
 import { PostCalibration } from '../../pages/PostCalibration';
 import { FinalReview } from '../../pages/FinalReview';
 import { AdminDashboard } from '../../pages/AdminDashboard';
+import { AdminUsers } from '../../pages/AdminUsers';
+import { AdminSettings } from '../../pages/AdminSettings';
 
 export function AppShell() {
   const { view, active } = useSession();
   const [navOpen, setNavOpen] = useState(false);
-  const inSession = view !== 'list' && view !== 'admin' && !!active;
+  const inSession = view !== 'list' && view !== 'admin' && view !== 'users' && view !== 'settings' && !!active;
 
   const page = {
     list: <SessionList />,
@@ -28,6 +30,8 @@ export function AppShell() {
     post: <PostCalibration />,
     review: <FinalReview />,
     admin: <AdminDashboard />,
+    users: <AdminUsers />,
+    settings: <AdminSettings />,
   }[view];
 
   return (

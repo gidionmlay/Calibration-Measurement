@@ -6,7 +6,7 @@ import { OperatorMenu } from './OperatorMenu';
 
 export function Header({ onMenu }: {onMenu: () => void;}) {
   const { active, derived, view, connectivity, openSyncDialog } = useSession();
-  const inSession = !!active && !!derived && view !== 'list';
+  const inSession = !!active && !!derived && view !== 'list' && view !== 'admin' && view !== 'users' && view !== 'settings';
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-panel px-3 md:px-5">

@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 /** Restore, read-only and sync-problem banners shared by every step page. */
 export function SessionBanners() {
   const { active, derived, view, restoreInfo, storageStatus, dismissRestore, openSyncDialog, goTo } = useSession();
-  if (!active || !derived || view === 'list') return null;
+  if (!active || !derived || view === 'list' || view === 'admin' || view === 'users' || view === 'settings') return null;
 
   const stepLabel = workflowSteps.find((s) => s.id === restoreInfo?.step)?.label;
   const openCount = derived.openWarnings.length;

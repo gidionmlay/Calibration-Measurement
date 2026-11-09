@@ -290,7 +290,8 @@ export function SessionProvider({ connectivity, listScenario, children }: Sessio
     (next: ViewId, focusId?: string) => {
       setView(next);
       setRestoreInfo(null);
-      if (next !== 'list' && next !== 'admin' && activeRef) {
+      const isStep = (v: ViewId): v is StepId => !(['list', 'admin', 'users', 'settings'] as ViewId[]).includes(v);
+      if (isStep(next) && activeRef) {
         setSessions((list) => list.map((s) => s.reference === activeRef && !s.finalized ? { ...s, lastStep: next } : s));
       }
       if (focusId) {

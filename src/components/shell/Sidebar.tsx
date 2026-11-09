@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { BarChart3Icon, FolderOpenIcon, ListIcon, PlusIcon, SettingsIcon, XIcon } from 'lucide-react';
+import { BarChart3Icon, FolderOpenIcon, ListIcon, PlusIcon, SettingsIcon, UsersIcon, XIcon } from 'lucide-react';
 import { useSession } from '../../contexts/SessionContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -49,18 +49,25 @@ export function Sidebar({ open, onClose }: {open: boolean;onClose: () => void;})
 
   if (isAdmin) {
     items.push({
-      key: 'admin',
-      label: 'Admin Overview',
+      key: 'overview',
+      label: 'Overview',
       Icon: BarChart3Icon,
       active: view === 'admin',
       onSelect: () => goTo('admin'),
     });
     items.push({
-      key: 'sessions',
-      label: 'Sessions',
-      Icon: ListIcon,
-      active: view === 'list',
-      onSelect: () => goTo('list'),
+      key: 'users',
+      label: 'Users',
+      Icon: UsersIcon,
+      active: view === 'users',
+      onSelect: () => goTo('users'),
+    });
+    items.push({
+      key: 'settings',
+      label: 'Settings',
+      Icon: SettingsIcon,
+      active: view === 'settings',
+      onSelect: () => goTo('settings'),
     });
   } else {
     items.push({
@@ -77,19 +84,26 @@ export function Sidebar({ open, onClose }: {open: boolean;onClose: () => void;})
       active: false,
       onSelect: createSession,
     });
-  }
-
-  if (active) {
+    if (active) {
+      items.push({
+        key: 'current',
+        label: active.reference,
+        Icon: FolderOpenIcon,
+        active: view !== 'list',
+        note: 'Open',
+        onSelect: () => openSession(active.reference),
+      });
+    }
     items.push({
-      key: 'current',
-      label: active.reference,
-      Icon: FolderOpenIcon,
-      active: view !== 'list',
-      note: 'Open',
-      onSelect: () => openSession(active.reference)
+      key: 'settings',
+      label: 'Settings',
+      Icon: SettingsIcon,
+      active: false,
+      disabled: true,
+      note: 'Later',
+      onSelect: () => undefined,
     });
   }
-  items.push({ key: 'settings', label: 'Settings', Icon: SettingsIcon, active: false, disabled: true, note: 'Later', onSelect: () => undefined });
 
   return (
     <>

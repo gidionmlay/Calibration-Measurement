@@ -11,7 +11,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, aside }: PageHeaderProps) {
   const { active, derived, view, openSyncDialog } = useSession();
-  const inSession = !!active && !!derived && view !== 'list';
+  const inSession = !!active && !!derived && view !== 'list' && view !== 'admin' && view !== 'users' && view !== 'settings';
 
   return (
     <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">

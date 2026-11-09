@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BarChart3Icon, ChevronDownIcon, LogInIcon, LogOutIcon, ShieldCheckIcon, UserIcon } from 'lucide-react';
+import { BarChart3Icon, ChevronDownIcon, LogInIcon, LogOutIcon, SettingsIcon, ShieldCheckIcon, UserIcon, UsersIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSession } from '../../contexts/SessionContext';
 import { prototypeOperator } from '../../data/sessions';
@@ -111,7 +111,31 @@ export function OperatorMenu() {
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-ink hover:bg-fill"
               >
                 <BarChart3Icon className="h-4 w-4 text-sub" aria-hidden="true" />
-                <span>Admin Overview</span>
+                <span>Overview</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  goTo('users');
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-ink hover:bg-fill"
+              >
+                <UsersIcon className="h-4 w-4 text-sub" aria-hidden="true" />
+                <span>Users</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  goTo('settings');
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-ink hover:bg-fill"
+              >
+                <SettingsIcon className="h-4 w-4 text-sub" aria-hidden="true" />
+                <span>Settings</span>
               </button>
             </div>
           )}
