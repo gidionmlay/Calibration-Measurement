@@ -8,7 +8,6 @@ import {
   MailIcon,
   UserIcon,
   Building2Icon,
-  CheckCircle2Icon,
   EyeIcon,
   EyeOffIcon,
   ShieldCheckIcon,
@@ -269,19 +268,6 @@ export function AuthScreen({ initialTab = 'register' }: AuthScreenProps) {
                       )}
                     </button>
                   </div>
-                </div>
-
-                {/* Autonomous Activation Assurance Badge */}
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-950">
-                  <div className="flex items-center gap-1.5 font-semibold">
-                    <CheckCircle2Icon className="h-4 w-4 text-emerald-600 shrink-0" />
-                    <span>Immediate Autonomous Activation</span>
-                  </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-emerald-900">
-                    No waiting for administrative approvals. Your account is
-                    granted full Measurer capabilities immediately so you can
-                    start operating in the field right away.
-                  </p>
                 </div>
 
                 <div className="pt-2">

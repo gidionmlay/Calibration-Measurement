@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Notice } from '../ui/Notice';
-import { CheckCircle2Icon, LockIcon, MailIcon, UserIcon, Building2Icon } from 'lucide-react';
+import { LockIcon, MailIcon, UserIcon, Building2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function AuthModal() {
@@ -306,18 +306,6 @@ export function AuthModal() {
                   placeholder="e.g. World Athletics / AIMS / Federation"
                   className="w-full rounded border border-line bg-panel pl-9 pr-3 py-2 text-sm text-ink placeholder-faint focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                 />
-              </div>
-            </div>
-
-            <div className="rounded border border-emerald-200 bg-emerald-50/70 p-2.5 text-xs text-emerald-800">
-              <div className="flex items-start gap-2">
-                <CheckCircle2Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
-                <div>
-                  <p className="font-semibold">Immediate Autonomous Activation</p>
-                  <p className="mt-0.5 text-emerald-700">
-                    Your account is activated instantly with Field Measurer capabilities. You can immediately setup sessions, enter counts, and download certified reports.
-                  </p>
-                </div>
               </div>
             </div>
 

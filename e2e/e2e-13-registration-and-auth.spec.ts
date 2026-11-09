@@ -16,7 +16,8 @@ test.describe('E2E-13: Mandatory Auth Gate, Self-Registration, Clean Dashboard &
     // 2. Verify mandatory auth gate displays "Create Measurer Account" tab by default
     await expect(page.getByRole('tab', { name: /Create Measurer Account/i })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('heading', { name: /Create Measurer Account/i })).toBeVisible();
-    await expect(page.getByText(/Immediate Autonomous Activation/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Create Account & Start Measuring/i })).toBeVisible();
+    await expect(page.getByText(/Immediate Autonomous Activation/i)).not.toBeVisible();
 
     // 3. Fill in registration details
     await page.locator('#reg-name').fill(measurerName);
